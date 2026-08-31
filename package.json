@@ -1,0 +1,38 @@
+{
+  "name": "pi-recap",
+  "version": "0.1.0",
+  "description": "Claude Code-style session recaps for the Pi Coding Agent TUI.",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "npm run typecheck && node test/core.test.ts && node test/presence.test.ts && node test/config.test.ts && node test/generation.test.ts && node test/plugin-contract.test.ts",
+    "test:e2e:manual": "node test/manual-e2e.mjs"
+  },
+  "license": "MIT",
+  "author": "DDDFXYqiming",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DDDFXYqiming/pi-recap.git"
+  },
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "pi",
+    "session-recap",
+    "tui",
+    "local-first"
+  ],
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": ">=0.84.4 <0.85.0"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "0.84.4",
+    "@types/node": "^22.19.19",
+    "typescript": "^5.9.3"
+  }
+}
