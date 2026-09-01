@@ -390,5 +390,5 @@ export default function piRecap(pi: ExtensionAPI) {
     },
   });
 
-  log(`loaded (idleMs=${config.idleMs} minTurns=${config.minTurns} maxChars=${config.maxChars})`);
+  log(`loaded (idleMs=${config.idleMs} minTurns=${config.minTurns} maxChars=${config.maxChars} maxOutputTokens=${config.maxOutputTokens})`);
 }

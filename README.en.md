@@ -10,6 +10,7 @@
 - Uses terminal focus reporting in the regular TUI to detect when the user leaves and returns.
 - Automatically generates after three minutes from the last completed turn when at least three turns exist and the terminal is unfocused.
 - Stores the recap as a Pi custom session entry, outside the next LLM context.
+- Writes the recap in the language the user writes in (the prompt no longer forces English).
 - Restores state by the active branch after resume, tree navigation, fork, and compaction.
 - Uses a bounded auxiliary model request with bounded input, output, and timeout.
 
@@ -60,15 +61,14 @@ Configuration is read from `~/.pi/agent/pi-recap.json`:
   "recentMessages": 30,
   "maxChars": 400,
   "maxInputChars": 24000,
-  "maxOutputTokens": 512,
+  "maxOutputTokens": 2048,
   "timeoutMs": 30000,
   "provider": "",
-  "model": "",
-  "reasoningEffort": ""
+  "model": ""
 }
 ```
 
-The current Pi model is used by default. Set `provider` and `model` together to use a fixed route. An empty `reasoningEffort` follows the current thinking level and maps it to the model's supported capability.
+The current Pi model is used by default. Set `provider` and `model` together to use a fixed route. The recap is an auxiliary call that sends **no thinking level at all** (it never follows the session level), so provider default behaviour applies: inheriting it lets reasoning tokens eat `maxOutputTokens` and leaves only a thinking block with no answer text. `maxOutputTokens` is just an output ceiling, 2048 by default (16–16384 allowed).
 
 ## Verified tests
 

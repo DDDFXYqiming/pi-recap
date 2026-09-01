@@ -10,6 +10,7 @@
 - 在 regular TUI 中使用终端 focus reporting 识别用户离开和回来。
 - 默认在最后一个完成 turn 三分钟后、至少三轮且终端失焦时自动生成。
 - recap 作为 Pi custom session entry 保存，不进入后续 LLM 上下文。
+- recap 语言跟随会话里用户消息的语言（提示词不强迫英文）。
 - 会话恢复、树导航、fork 和 compaction 后按当前 branch 恢复状态。
 - 使用独立、有限时长、有限输入和输出的辅助模型请求。
 
@@ -60,15 +61,14 @@ pi -e D:\AI_Projects\pi-recap\index.ts
   "recentMessages": 30,
   "maxChars": 400,
   "maxInputChars": 24000,
-  "maxOutputTokens": 512,
+  "maxOutputTokens": 2048,
   "timeoutMs": 30000,
   "provider": "",
-  "model": "",
-  "reasoningEffort": ""
+  "model": ""
 }
 ```
 
-默认使用当前 Pi 模型；`provider` 和 `model` 同时填写时使用固定模型。`reasoningEffort` 为空时跟随当前 thinking level，并按模型能力映射。
+默认使用当前 Pi 模型；`provider` 和 `model` 同时填写时使用固定模型。recap 是辅助调用，**不发送任何思考等级**（不跟随会话 thinking level），完全走 provider 默认行为：跟随会让推理 token 吃掉 `maxOutputTokens`，只剩 thinking 块、正文为空。`maxOutputTokens` 只是输出上限，默认 2048（可设 16–16384）。
 
 ## 已验证测试
 

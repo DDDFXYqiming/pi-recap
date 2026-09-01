@@ -15,7 +15,6 @@ const parsed = parseConfig({
   timeoutMs: "bad",
   provider: " aliyun-tokenplan ",
   model: " qwen3.8-flash ",
-  reasoningEffort: " high ",
 });
 assert.equal(parsed.enabled, false);
 assert.equal(parsed.idleMs, 1_000);
@@ -24,11 +23,12 @@ assert.equal(parsed.recentMessages, 200);
 assert.equal(parsed.maxChars, 400);
 assert.equal(parsed.maxInputChars, 1_000);
 assert.equal(parsed.maxOutputTokens, 16);
+assert.equal(parseConfig({ maxOutputTokens: 999_999 }).maxOutputTokens, 16_384);
 assert.equal(parsed.timeoutMs, DEFAULT_CONFIG.timeoutMs);
 assert.equal(parsed.provider, "aliyun-tokenplan");
 assert.equal(parsed.model, "qwen3.8-flash");
-assert.equal(parsed.reasoningEffort, "high");
 assert.deepEqual(parseConfig(null), DEFAULT_CONFIG);
+assert.equal("reasoningEffort" in DEFAULT_CONFIG, false);
 
 const temp = mkdtempSync(join(tmpdir(), "pi-recap-config-"));
 const configPath = join(temp, "nested", "pi-recap.json");

@@ -13,7 +13,6 @@ export interface RecapConfig {
   timeoutMs: number;
   provider: string;
   model: string;
-  reasoningEffort: string;
 }
 
 export const DEFAULT_CONFIG: RecapConfig = {
@@ -23,11 +22,10 @@ export const DEFAULT_CONFIG: RecapConfig = {
   recentMessages: 30,
   maxChars: 400,
   maxInputChars: 24_000,
-  maxOutputTokens: 512,
+  maxOutputTokens: 2_048,
   timeoutMs: 30_000,
   provider: "",
   model: "",
-  reasoningEffort: "",
 };
 
 export const CONFIG_PATH = join(homedir(), ".pi", "agent", "pi-recap.json");
@@ -54,11 +52,10 @@ export function parseConfig(raw: unknown): RecapConfig {
     recentMessages: numberValue(raw.recentMessages, DEFAULT_CONFIG.recentMessages, 1, 200),
     maxChars: numberValue(raw.maxChars, DEFAULT_CONFIG.maxChars, 80, 400),
     maxInputChars: numberValue(raw.maxInputChars, DEFAULT_CONFIG.maxInputChars, 1_000, 200_000),
-    maxOutputTokens: numberValue(raw.maxOutputTokens, DEFAULT_CONFIG.maxOutputTokens, 16, 4_096),
+    maxOutputTokens: numberValue(raw.maxOutputTokens, DEFAULT_CONFIG.maxOutputTokens, 16, 16_384),
     timeoutMs: numberValue(raw.timeoutMs, DEFAULT_CONFIG.timeoutMs, 1_000, 2_147_483_647),
     provider: stringValue(raw.provider, DEFAULT_CONFIG.provider),
     model: stringValue(raw.model, DEFAULT_CONFIG.model),
-    reasoningEffort: stringValue(raw.reasoningEffort, DEFAULT_CONFIG.reasoningEffort),
   };
 }
 
