@@ -4,6 +4,8 @@
 
 **Pi Coding Agent 的 TUI 会话回顾插件**。你切走终端窗口，它在后台生成一份简短回顾；回到终端时，编辑器上方一行卡片概括当前会话的整体目标、已完成进展和下一步动作。
 
+当前版本：**0.1.0**
+
 ## 为什么需要它
 
 离开屏幕的理由很多，可能是一场会，也可能是一顿饭。回来时会话还停在原处，思路却断了，往上翻很久的消息记录才接得上刚才做到哪里。离开一段时间后回来，先读一段短回顾，再决定从哪里继续——这个插件把这段行为带进 Pi 的交互 TUI。回顾由一次独立的辅助模型请求生成，写好的正文不会进入后续 LLM 上下文。
@@ -19,7 +21,7 @@
 - 回顾作为 Pi custom session entry（`pi-recap/state`）持久化，不追加普通消息，也不进入后续 LLM 上下文。会话恢复、树导航、fork 和 compaction 之后按当前 branch 恢复状态。
 - 默认复用会话当前模型，也可用 `provider` + `model` 固定路由。辅助调用不发送任何思考等级，`maxOutputTokens` 只是输出上限。
 - 请求期间会话若开始新 turn、完成了更新的轮次或换了分支，旧结果不会提交。你回来后看到的正文始终和当前进度对得上。
-- 状态栏常驻 `recap on · focused` / `recap off · manual-only` 一行，能直接看出当前档位和终端在不在焦点。
+- 状态栏常驻 `recap on · focused` / `recap off · manual-only` 一行，能直接看出当前档位和终端在不在焦点；自动回顾失败时追加 `· failed: <原因>`，下次成功或新输入即清除。
 
 ## 工作方式
 
@@ -28,7 +30,7 @@
 3. 插件从当前 branch 的会话消息构造有界输入（`recentMessages`、`maxInputChars`），发起一次独立辅助请求，生成不超过 40 词、一到两句的纯文本回顾，内容是目标、进展和下一步。
 4. 每次生成带一个 `AbortController` 和 runtime generation 计数。焦点回来、新 turn、切会话、fork、compaction、换模型都会取消在途请求；提交前再校验 anchor 是否仍是最新完成轮。
 5. 结果通过 `pi.appendEntry()` 写成 custom entry 持久化（写入前 `structuredClone`，避免 SessionManager 按引用持有内存对象），随后渲染卡片与状态行。
-6. 自动回顾失败只在 stderr 打 `[pi-recap] ...` 日志，不打扰你；手动 `/recap` 的错误会以 error 通知直接说明原因。
+6. 自动回顾失败不弹通知（你人不在终端前），而是记成状态行的 `recap on · away · failed: <原因>`，同时在 stderr 打 `[pi-recap] ...`；一次新输入或下一次成功会把它清掉。手动 `/recap` 的错误直接以 error 通知说明原因。
 
 ## 安装
 
@@ -126,6 +128,7 @@ pi-recap: automatic on; focused; turns=7; state=ready; anchor=3f2a91c04b7d
 
 | 项目 | 版本或范围 |
 | --- | --- |
+| pi-recap | `0.1.0`（`package.json`） |
 | `@earendil-works/pi-coding-agent` | `>=0.84.4 <0.85.0`（peerDependency） |
 | Node.js | `>=22.19.0`（与 Pi 运行时范围一致，离线测试直接用 node 跑 `.ts`） |
 | 终端 | 需要支持 1004 focus reporting（如 Windows Terminal、xterm、iTerm2、kitty、wezterm）；不支持则自动退化为手动 |

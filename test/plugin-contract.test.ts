@@ -131,6 +131,23 @@ failAppend = true;
 await commands.get("recap")!.handler("", context);
 assert.equal(entries.filter((entry) => entry.type === "custom" && entry.customType === STATE_ENTRY_TYPE).length, 2);
 assert.match(notifications.at(-1) ?? "", /could not persist recap/);
+assert.doesNotMatch(notifications.at(-1) ?? "", /pi-recap: pi-recap:/);
+
+// An automatic failure stays quiet: it lands in the status line, never in a notification.
+entries.push(
+  { type: "message", id: "u4", message: { role: "user", content: "Ship the recap" } },
+  { type: "message", id: "a4", message: { role: "assistant", content: "Anchored on the newest turn", stopReason: "stop" } },
+);
+const notificationCount = notifications.length;
+assert.equal(registeredInput!(FOCUS_OUT)?.consume, true);
+await new Promise((resolve) => setTimeout(resolve, 25));
+assert.match(statusWrites.at(-1) ?? "", /away · failed: could not persist recap/);
+assert.equal(notifications.length, notificationCount);
+
+// The next success clears it.
+failAppend = false;
+await commands.get("recap")!.handler("", context);
+assert.doesNotMatch(statusWrites.at(-1) ?? "", /failed:/);
 
 await events.get("session_shutdown")?.({}, context);
 assert.deepEqual(terminalWrites, [FOCUS_ENABLE, FOCUS_DISABLE]);

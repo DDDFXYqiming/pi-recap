@@ -4,11 +4,13 @@ import {
   completedTurnCount,
   findLatestCompletedTurn,
   formatRecapLine,
+  formatStatusLine,
   hasOpenTurn,
   hasSnapshotForAnchor,
   isCompletedAssistant,
   isSnapshotCurrent,
   loadRecapState,
+  withRecapPrefix,
   STATE_ENTRY_TYPE,
   type RecapSnapshot,
   type SessionEntryLike,
@@ -61,6 +63,7 @@ export default function piRecap(pi: ExtensionAPI) {
   let presenceAvailable = false;
   let focused = true;
   let lastAgentCompleted = false;
+  let lastAutomaticError: string | undefined;
 
   const log = (message: string) => console.error(`[pi-recap] ${message}`);
 
@@ -89,7 +92,7 @@ export default function piRecap(pi: ExtensionAPI) {
       const mode = ctx?.mode === "tui"
         ? presenceAvailable ? (focused ? "focused" : "away") : "manual-only"
         : "manual-only";
-      ctx!.ui.setStatus(STATUS_KEY, `recap ${config.enabled ? "on" : "off"} · ${mode}`);
+      ctx!.ui.setStatus(STATUS_KEY, formatStatusLine(config.enabled, mode, lastAutomaticError));
     });
   }
 
@@ -169,6 +172,7 @@ export default function piRecap(pi: ExtensionAPI) {
     cancelCall();
     currentCtx = ctx;
     snapshot = loadRecapState(branch(ctx), config.maxChars);
+    lastAutomaticError = undefined;
     lastAgentCompleted = false;
     installPresence(ctx);
     render(ctx);
@@ -223,12 +227,19 @@ export default function piRecap(pi: ExtensionAPI) {
         source,
         dismissed: false,
       });
+      lastAutomaticError = undefined;
       render(currentCtx ?? ctx);
+      updateStatus(currentCtx ?? ctx);
       return { ok: true };
     } catch (error) {
       if (controller.signal.aborted) return { ok: false, message: "generation was cancelled" };
       const message = errorText(error);
-      if (source === "automatic") log(message);
+      if (source === "automatic") {
+        // The user is away: surface it in the status line instead of interrupting with a notification.
+        lastAutomaticError = message;
+        log(message);
+        updateStatus(ctx);
+      }
       return { ok: false, message };
     } finally {
       if (activeCall === call) activeCall = undefined;
@@ -297,9 +308,11 @@ export default function piRecap(pi: ExtensionAPI) {
 
   pi.on("input", (_event, ctx) => {
     currentCtx = ctx;
+    lastAutomaticError = undefined;
     clearTimer();
     cancelCall();
     tryUi(ctx, () => ctx.ui.setWidget(CARD_WIDGET_KEY, undefined));
+    updateStatus(ctx);
   });
   pi.on("agent_start", (_event, ctx) => {
     currentCtx = ctx;
@@ -343,7 +356,7 @@ export default function piRecap(pi: ExtensionAPI) {
           saveConfig(config);
           notify(ctx, `pi-recap automatic mode ${config.enabled ? "enabled" : "disabled"}.`);
         } catch (error) {
-          notify(ctx, `pi-recap: could not save configuration: ${errorText(error)}`, "error");
+          notify(ctx, withRecapPrefix(`could not save configuration: ${errorText(error)}`), "error");
         }
         updateStatus(ctx);
         return;
@@ -362,7 +375,7 @@ export default function piRecap(pi: ExtensionAPI) {
           persist({ ...snapshot, dismissed: true, generatedAt: Date.now() });
           render(ctx);
         } catch (error) {
-          notify(ctx, `pi-recap: ${errorText(error)}`, "error");
+          notify(ctx, withRecapPrefix(errorText(error)), "error");
         }
         return;
       }
@@ -383,7 +396,7 @@ export default function piRecap(pi: ExtensionAPI) {
       clearTimer();
       const result = await runRecap(ctx, "manual", anchor.entryId);
       if (!result.ok) {
-        notify(ctx, `pi-recap: ${result.message}`, "error");
+        notify(ctx, withRecapPrefix(result.message), "error");
       } else if (ctx.mode !== "tui") {
         notify(ctx, "pi-recap: recap ready.");
       }

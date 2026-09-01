@@ -6,6 +6,8 @@ import {
   findLatestCompletedTurn,
   frameTranscript,
   formatRecapLine,
+  formatStatusLine,
+  withRecapPrefix,
   hasOpenTurn,
   isSnapshotCurrent,
   loadRecapState,
@@ -125,6 +127,17 @@ check("state is branch-bound and dismissed state is hidden", () => {
 
 check("recap line is one compact display line", () => {
   assert.equal(formatRecapLine("已完成\n下一步验证"), "↩ recap: 已完成 下一步验证");
+});
+
+check("status line carries the last automatic failure once", () => {
+  assert.equal(formatStatusLine(true, "focused"), "recap on · focused");
+  assert.equal(formatStatusLine(false, "manual-only"), "recap off · manual-only");
+  assert.equal(
+    formatStatusLine(true, "away", "could not persist recap: boom"),
+    "recap on · away · failed: could not persist recap: boom",
+  );
+  assert.equal(withRecapPrefix("pi-recap: already prefixed"), "pi-recap: already prefixed");
+  assert.equal(withRecapPrefix("bare message"), "pi-recap: bare message");
 });
 
 console.log(`PASS all ${checks} core checks`);

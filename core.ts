@@ -226,6 +226,15 @@ export function formatRecapLine(text: string): string {
   return `↩ recap: ${text.replace(/\s+/g, " ").trim()}`;
 }
 
+export function formatStatusLine(enabled: boolean, mode: string, error?: string): string {
+  return `recap ${enabled ? "on" : "off"} · ${mode}${error ? ` · failed: ${error}` : ""}`;
+}
+
+/** Prefix a user-facing message once, never twice. */
+export function withRecapPrefix(message: string): string {
+  return message.startsWith("pi-recap:") ? message : `pi-recap: ${message}`;
+}
+
 export function isCompletedAssistant(message: MessageLike | undefined): boolean {
   return message?.role === "assistant" && COMPLETED_STOP_REASONS.has(message.stopReason ?? "");
 }

@@ -4,6 +4,8 @@
 
 **A session-recap plugin for the Pi Coding Agent TUI.** Switch to another window and it generates a short recap in the background. When you come back, a single line above the editor summarizes the session's overall goal, completed progress, and the one next action.
 
+Current version: **0.1.0**
+
 ## Why it exists
 
 People step away from the screen for all sorts of reasons, and the session is still sitting there when they return. The thread of thought is gone, though, and scrolling back through the message history takes a while. Read a short recap first, then decide where to pick up. This plugin brings that behavior to the interactive Pi TUI. A separate auxiliary model request produces the recap, and the finished text never enters the next LLM context.
@@ -19,7 +21,7 @@ People step away from the screen for all sorts of reasons, and the session is st
 - Persists the recap as a Pi custom session entry (`pi-recap/state`) instead of appending messages, so it stays out of the LLM context. State is restored per active branch after resume, tree navigation, fork, and compaction.
 - Reuses the session's current model by default, with an optional fixed `provider` + `model` route. The auxiliary call sends no thinking level at all, and `maxOutputTokens` is only an output ceiling.
 - If a new turn starts, a newer turn completes, or the branch changes while a request is running, the stale result is discarded. What you see on return always matches current progress.
-- Keeps a status line such as `recap on · focused` or `recap off · manual-only`, so the active mode is visible without asking.
+- Keeps a status line such as `recap on · focused` or `recap off · manual-only`, so the active mode is visible without asking. An automatic failure appends `· failed: <reason>` to it, and the next success or new input clears it.
 
 ## How it works
 
@@ -28,7 +30,7 @@ People step away from the screen for all sorts of reasons, and the session is st
 3. The plugin frames recent messages on the current branch into bounded input (`recentMessages`, `maxInputChars`) and makes one independent auxiliary request for a plain-text goal / progress / next-step recap of at most 40 words in one or two sentences.
 4. Every generation owns an `AbortController` and a runtime generation counter. Regaining focus, a new turn, a session switch, fork, compaction, or a model change cancels the in-flight request, and the anchor is re-checked before anything is committed.
 5. The accepted result is persisted through `pi.appendEntry()` as a custom entry (`structuredClone`d first, because SessionManager retains custom-entry data by reference), then the card and status line are rendered.
-6. Automatic failures only write `[pi-recap] ...` to stderr and never interrupt you; a manual `/recap` error is reported directly as an error notification.
+6. An automatic failure never interrupts you with a notification: it is recorded in the status line as `recap on · away · failed: <reason>` and logged to stderr as `[pi-recap] ...`. New input or the next success clears it. A manual `/recap` error is reported directly as an error notification.
 
 ## Install
 
@@ -126,6 +128,7 @@ Only the latest valid snapshot on a branch is read back, so each branch keeps ex
 
 | Item | Version or range |
 | --- | --- |
+| pi-recap | `0.1.0` (`package.json`) |
 | `@earendil-works/pi-coding-agent` | `>=0.84.4 <0.85.0` (peerDependency) |
 | Node.js | `>=22.19.0` (matches the Pi runtime range; offline tests run `.ts` directly with node) |
 | Terminal | 1004 focus reporting required for automatic mode (Windows Terminal, xterm, iTerm2, kitty, wezterm, …); otherwise manual |
