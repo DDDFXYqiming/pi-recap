@@ -4,7 +4,7 @@
 
 **A session-recap plugin for the Pi Coding Agent TUI.** Switch to another window and it generates a short recap in the background. When you come back, a single line above the editor summarizes the session's overall goal, completed progress, and the one next action.
 
-Current version: **0.1.0**
+Current version: **0.2.0**
 
 ## Why it exists
 
@@ -19,7 +19,7 @@ People step away from the screen for all sorts of reasons, and the session is st
 - Displays the result as a one-line card above the editor, capped at 400 characters. Typing a new message, starting a new turn, switching sessions, or dismissing the banner hides it.
 - Scopes dismissal to the session branch and the completed turn the recap belongs to, so switching away and back does not resurrect a dismissed banner.
 - Persists the recap as a Pi custom session entry (`pi-recap/state`) instead of appending messages, so it stays out of the LLM context. State is restored per active branch after resume, tree navigation, fork, and compaction.
-- Reuses the session's current model by default, with an optional fixed `provider` + `model` route. The auxiliary call sends no thinking level at all, and `maxOutputTokens` is only an output ceiling.
+- Reuses the session's current model by default, with an optional fixed `provider` + `model` route. The auxiliary call sends no thinking level at all, `maxOutputTokens` is only an output ceiling, and `temperature` / `stopSequences` are optional overrides.
 - If a new turn starts, a newer turn completes, or the branch changes while a request is running, the stale result is discarded. What you see on return always matches current progress.
 - Keeps a status line such as `recap on · focused` or `recap off · manual-only`, so the active mode is visible without asking. An automatic failure appends `· failed: <reason>` to it, and the next success or new input clears it.
 
@@ -101,9 +101,12 @@ Config file: `~/.pi/agent/pi-recap.json`. It is written the first time you run `
   "maxOutputTokens": 2048, // output token ceiling for the auxiliary call (16-16384)
   "timeoutMs": 30000,      // per-request timeout
   "provider": "",          // empty: reuse the session's provider
-  "model": ""              // empty: reuse the session's model; fill both to pin a route
+  "model": "",             // empty: reuse the session's model; fill both to pin a route
+  "stopSequences": []      // optional stop sequences, up to 8 entries of 200 characters
 }
 ```
+
+`temperature` is an optional key that is not written by default: leave it out and the field is never sent, so the model or server decides; when present it is clamped to 0–2. `stopSequences` travels through `samplingParams.stop`, which OpenAI-compatible adapters forward and other APIs such as Anthropic ignore.
 
 `provider` and `model` must be set together; setting only one is an error. When both are empty the recap follows the model the session actually uses, so it needs no separate route.
 
@@ -128,7 +131,7 @@ Only the latest valid snapshot on a branch is read back, so each branch keeps ex
 
 | Item | Version or range |
 | --- | --- |
-| pi-recap | `0.1.0` (`package.json`) |
+| pi-recap | `0.2.0` (`package.json`) |
 | `@earendil-works/pi-coding-agent` | `>=0.84.4 <0.85.0` (peerDependency) |
 | Node.js | `>=22.19.0` (matches the Pi runtime range; offline tests run `.ts` directly with node) |
 | Terminal | 1004 focus reporting required for automatic mode (Windows Terminal, xterm, iTerm2, kitty, wezterm, …); otherwise manual |

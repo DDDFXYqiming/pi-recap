@@ -106,6 +106,8 @@ export async function generateRecap(
     cacheRetention: "none",
     sessionId: `pi-recap:${ctx.sessionManager.getSessionId()}:${randomUUID()}`,
   };
+  if (config.temperature !== undefined) options.temperature = config.temperature;
+  if (config.stopSequences.length > 0) options.samplingParams = { stop: config.stopSequences };
   // A recap is an auxiliary call: no reasoning option, provider default only.
   const response = await completeSimple(
     ctx,

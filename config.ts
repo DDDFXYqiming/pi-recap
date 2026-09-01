@@ -13,6 +13,10 @@ export interface RecapConfig {
   timeoutMs: number;
   provider: string;
   model: string;
+  /** Sampling temperature. Undefined means the key is omitted so the model default applies. */
+  temperature: number | undefined;
+  /** Optional stop sequences. Only OpenAI-compatible adapters forward them; other providers ignore them. */
+  stopSequences: string[];
 }
 
 export const DEFAULT_CONFIG: RecapConfig = {
@@ -26,6 +30,8 @@ export const DEFAULT_CONFIG: RecapConfig = {
   timeoutMs: 30_000,
   provider: "",
   model: "",
+  temperature: undefined,
+  stopSequences: [],
 };
 
 export const CONFIG_PATH = join(homedir(), ".pi", "agent", "pi-recap.json");
@@ -56,6 +62,15 @@ export function parseConfig(raw: unknown): RecapConfig {
     timeoutMs: numberValue(raw.timeoutMs, DEFAULT_CONFIG.timeoutMs, 1_000, 2_147_483_647),
     provider: stringValue(raw.provider, DEFAULT_CONFIG.provider),
     model: stringValue(raw.model, DEFAULT_CONFIG.model),
+    temperature: typeof raw.temperature === "number" && Number.isFinite(raw.temperature)
+      ? Math.min(2, Math.max(0, raw.temperature))
+      : undefined,
+    stopSequences: Array.isArray(raw.stopSequences)
+      ? raw.stopSequences
+        .filter((item): item is string => typeof item === "string" && item.length > 0)
+        .map((item) => item.slice(0, 200))
+        .slice(0, 8)
+      : [],
   };
 }
 

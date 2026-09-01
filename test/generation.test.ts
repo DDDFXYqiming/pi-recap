@@ -39,6 +39,15 @@ assert.equal(recap, "Goal is implemented; next action is verify it.");
 assert.equal("reasoning" in seenOptions, false);
 assert.equal("thinking" in seenOptions, false);
 assert.equal("reasoningEffort" in seenOptions, false);
+assert.equal("temperature" in seenOptions, false);
+assert.equal("samplingParams" in seenOptions, false);
+await generateRecap(
+  fakeContext as never,
+  { ...DEFAULT_CONFIG, maxChars: 100, temperature: 0.2, stopSequences: ["\n\n"] },
+  new AbortController().signal,
+);
+assert.equal(seenOptions.temperature, 0.2);
+assert.deepEqual(seenOptions.samplingParams, { stop: ["\n\n"] });
 assert.equal(seenOptions.maxTokens, DEFAULT_CONFIG.maxOutputTokens);
 assert.ok(DEFAULT_CONFIG.maxOutputTokens >= 2_048);
 assert.equal(seenOptions.apiKey, "test-only-key");

@@ -4,7 +4,7 @@
 
 **Pi Coding Agent 的 TUI 会话回顾插件**。你切走终端窗口，它在后台生成一份简短回顾；回到终端时，编辑器上方一行卡片概括当前会话的整体目标、已完成进展和下一步动作。
 
-当前版本：**0.1.0**
+当前版本：**0.2.0**
 
 ## 为什么需要它
 
@@ -19,7 +19,7 @@
 - 结果以单行卡片显示在编辑器上方，最长 400 字符；输入新消息、开始新 turn、切换会话或关闭横幅后当前回顾会隐藏。
 - 关闭状态按「会话分支 + 回顾对应的完成轮」隔离；切走再切回，横幅不会重新出现。
 - 回顾作为 Pi custom session entry（`pi-recap/state`）持久化，不追加普通消息，也不进入后续 LLM 上下文。会话恢复、树导航、fork 和 compaction 之后按当前 branch 恢复状态。
-- 默认复用会话当前模型，也可用 `provider` + `model` 固定路由。辅助调用不发送任何思考等级，`maxOutputTokens` 只是输出上限。
+- 默认复用会话当前模型，也可用 `provider` + `model` 固定路由。辅助调用不发送任何思考等级，`maxOutputTokens` 只是输出上限；`temperature` 与 `stopSequences` 可选覆盖。
 - 请求期间会话若开始新 turn、完成了更新的轮次或换了分支，旧结果不会提交。你回来后看到的正文始终和当前进度对得上。
 - 状态栏常驻 `recap on · focused` / `recap off · manual-only` 一行，能直接看出当前档位和终端在不在焦点；自动回顾失败时追加 `· failed: <原因>`，下次成功或新输入即清除。
 
@@ -101,9 +101,12 @@ pi-recap: automatic on; focused; turns=7; state=ready; anchor=3f2a91c04b7d
   "maxOutputTokens": 2048,// 辅助请求的输出 token 上限（16–16384）
   "timeoutMs": 30000,     // 单次辅助请求超时
   "provider": "",         // 留空：复用会话当前 provider
-  "model": ""             // 留空：复用会话当前 model；固定路由时与 provider 成对填写
+  "model": "",            // 留空：复用会话当前 model；固定路由时与 provider 成对填写
+  "stopSequences": []     // 可选停止词，最多 8 条、每条 200 字符
 }
 ```
+
+`temperature` 是可选键，默认不写入：整行省略就不发送该字段，采样温度由模型/服务端决定；填了会被钳到 0–2。`stopSequences` 走 OpenAI 兼容适配器的请求体透传（`samplingParams.stop`），Anthropic 等其它 API 会忽略。
 
 `provider` 与 `model` 必须成对填写，只填一个会直接报错。两者留空时回顾跟着会话真正在用的模型走，不需要单独指定路由。
 
@@ -128,7 +131,7 @@ pi-recap: automatic on; focused; turns=7; state=ready; anchor=3f2a91c04b7d
 
 | 项目 | 版本或范围 |
 | --- | --- |
-| pi-recap | `0.1.0`（`package.json`） |
+| pi-recap | `0.2.0`（`package.json`） |
 | `@earendil-works/pi-coding-agent` | `>=0.84.4 <0.85.0`（peerDependency） |
 | Node.js | `>=22.19.0`（与 Pi 运行时范围一致，离线测试直接用 node 跑 `.ts`） |
 | 终端 | 需要支持 1004 focus reporting（如 Windows Terminal、xterm、iTerm2、kitty、wezterm）；不支持则自动退化为手动 |

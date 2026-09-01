@@ -15,6 +15,8 @@ const parsed = parseConfig({
   timeoutMs: "bad",
   provider: " aliyun-tokenplan ",
   model: " qwen3.8-flash ",
+  temperature: 4.5,
+  stopSequences: ["ok", "", 7, "x".repeat(300)],
 });
 assert.equal(parsed.enabled, false);
 assert.equal(parsed.idleMs, 1_000);
@@ -27,6 +29,12 @@ assert.equal(parseConfig({ maxOutputTokens: 999_999 }).maxOutputTokens, 16_384);
 assert.equal(parsed.timeoutMs, DEFAULT_CONFIG.timeoutMs);
 assert.equal(parsed.provider, "aliyun-tokenplan");
 assert.equal(parsed.model, "qwen3.8-flash");
+assert.equal(parsed.temperature, 2);
+assert.deepEqual(parsed.stopSequences, ["ok", "x".repeat(200)]);
+assert.equal(parseConfig({ temperature: -1 }).temperature, 0);
+assert.equal("temperature" in parseConfig({}), true);
+assert.equal(parseConfig({}).temperature, undefined);
+assert.deepEqual(parseConfig({}).stopSequences, []);
 assert.deepEqual(parseConfig(null), DEFAULT_CONFIG);
 assert.equal("reasoningEffort" in DEFAULT_CONFIG, false);
 
