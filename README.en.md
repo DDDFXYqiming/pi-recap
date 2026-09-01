@@ -27,7 +27,7 @@ People step away from the screen for all sorts of reasons, and the session is st
 
 1. The presence adapter enables terminal focus reporting (`\x1b[?1004h`) and maps `ESC[I` / `ESC[O` to focused / away, consuming those sequences so normal input is unaffected.
 2. A timer is armed only when the session is away, the latest completed turn is at least `idleMs` old, `minTurns` is satisfied, no turn is left open, and that turn has no recap yet. The delay is computed as `anchor.timestamp + idleMs - now`, so leaving early and leaving late land on the same moment.
-3. The plugin frames recent messages on the current branch into bounded input (`recentMessages`, `maxInputChars`) and makes one independent auxiliary request for a plain-text goal / progress / next-step recap of at most 40 words in one or two sentences.
+3. The plugin frames bounded input from the current branch (`recentMessages`, `maxInputChars`): tool-result messages are dropped first because raw command output is not intent, then the newest user request anchors the current task. One independent auxiliary request produces a plain-text recap of at most 40 words in one or two sentences covering the current task, completed progress and the next step.
 4. Every generation owns an `AbortController` and a runtime generation counter. Regaining focus, a new turn, a session switch, fork, compaction, or a model change cancels the in-flight request, and the anchor is re-checked before anything is committed.
 5. The accepted result is persisted through `pi.appendEntry()` as a custom entry (`structuredClone`d first, because SessionManager retains custom-entry data by reference), then the card and status line are rendered.
 6. An automatic failure never interrupts you with a notification: it is recorded in the status line as `recap on · away · failed: <reason>` and logged to stderr as `[pi-recap] ...`. New input or the next success clears it. A manual `/recap` error is reported directly as an error notification.
@@ -95,7 +95,7 @@ Config file: `~/.pi/agent/pi-recap.json`. It is written the first time you run `
   "enabled": true,         // controls automatic recaps only; /recap always works
   "idleMs": 180000,        // minimum time from the latest completed turn (ms)
   "minTurns": 3,           // completed turns required for an automatic recap
-  "recentMessages": 30,    // messages sent to the recap request (1-200)
+  "recentMessages": 80,    // messages sent to the recap request (1-200, user/assistant only)
   "maxChars": 400,         // recap text ceiling (80-400)
   "maxInputChars": 24000,  // recap input budget in bytes (1000-200000)
   "maxOutputTokens": 2048, // output token ceiling for the auxiliary call (16-16384)

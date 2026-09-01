@@ -114,10 +114,23 @@ export function frameTranscript(
   maxBytes: number,
 ): string {
   const count = Math.max(1, Math.floor(recentMessages));
-  const start = Math.max(0, messages.length - count);
-  const selected = messages.slice(start);
-  const openingIndex = messages.findIndex((message) => message.role === "user");
-  const opening = openingIndex < 0 ? "" : contentText(messages[openingIndex]?.content).replace(/\s+/g, " ").trim();
+  // Pi stores every tool result as its own message holding raw command output.
+  // Left in, `recentMessages` counts entries instead of conversation and tool
+  // noise eats the whole byte budget, so drop them before windowing.
+  const conversation = messages.filter((message) => message.role !== "toolResult");
+  const start = Math.max(0, conversation.length - count);
+  const selected = conversation.slice(start);
+  // Anchor on the newest user request, not the session opening: sessions drift
+  // across tasks, and by the time the first request falls out of the window it
+  // describes work that is long finished.
+  let anchorIndex = -1;
+  for (let index = conversation.length - 1; index >= 0; index -= 1) {
+    if (conversation[index]?.role === "user") {
+      anchorIndex = index;
+      break;
+    }
+  }
+  const anchor = anchorIndex < 0 ? "" : contentText(conversation[anchorIndex]?.content).replace(/\s+/g, " ").trim();
   const recent = selected
     .map((message) => ({
       role: typeof message.role === "string" ? message.role : "unknown",
@@ -125,7 +138,7 @@ export function frameTranscript(
     }))
     .filter((entry) => entry.text.length > 0);
   const frame: { goal: string; recent: Array<{ role: string; text: string }> } = {
-    goal: openingIndex >= start ? "" : opening,
+    goal: anchorIndex >= start ? "" : anchor,
     recent,
   };
   const values: Array<{ get(): string; set(value: string): void }> = [

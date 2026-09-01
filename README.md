@@ -27,7 +27,7 @@
 
 1. presence adapter 打开终端 focus reporting（`\x1b[?1004h`），把 `ESC[I` / `ESC[O` 映射为 focused / away，并消费这两个序列，不影响正常输入。
 2. 只有会话处于 away、最后一个完成 turn 已超过 `idleMs`、完成轮数达到 `minTurns`、没有未闭合 turn 且该轮还没有回顾时才排定定时器。延迟按 `anchor.timestamp + idleMs - now` 计算，所以失焦得晚和失焦得早都落在同一个时刻。
-3. 插件从当前 branch 的会话消息构造有界输入（`recentMessages`、`maxInputChars`），发起一次独立辅助请求，生成不超过 40 词、一到两句的纯文本回顾，内容是目标、进展和下一步。
+3. 插件从当前 branch 的会话消息构造有界输入（`recentMessages`、`maxInputChars`）：先剔除工具结果消息（原始命令输出不算意图），再以最近一条用户请求为当前任务锚点，发起一次独立辅助请求，生成不超过 40 词、一到两句的纯文本回顾，内容是当前任务、已完成进展和下一步。
 4. 每次生成带一个 `AbortController` 和 runtime generation 计数。焦点回来、新 turn、切会话、fork、compaction、换模型都会取消在途请求；提交前再校验 anchor 是否仍是最新完成轮。
 5. 结果通过 `pi.appendEntry()` 写成 custom entry 持久化（写入前 `structuredClone`，避免 SessionManager 按引用持有内存对象），随后渲染卡片与状态行。
 6. 自动回顾失败不弹通知（你人不在终端前），而是记成状态行的 `recap on · away · failed: <原因>`，同时在 stderr 打 `[pi-recap] ...`；一次新输入或下一次成功会把它清掉。手动 `/recap` 的错误直接以 error 通知说明原因。
@@ -95,7 +95,7 @@ pi-recap: automatic on; focused; turns=7; state=ready; anchor=3f2a91c04b7d
   "enabled": true,        // 只控制自动回顾，/recap 始终可用
   "idleMs": 180000,       // 最后一个完成 turn 到自动回顾的最短时间（毫秒）
   "minTurns": 3,          // 自动回顾所需的最少完成轮数
-  "recentMessages": 30,   // 进入回顾请求的最近消息数（1–200）
+  "recentMessages": 80,   // 进入回顾请求的最近消息数（1–200，只计用户/助手消息）
   "maxChars": 400,        // 回顾正文显示上限（80–400）
   "maxInputChars": 24000, // 回顾输入预算（字节，1000–200000）
   "maxOutputTokens": 2048,// 辅助请求的输出 token 上限（16–16384）

@@ -82,7 +82,7 @@ check("Pi 0.84.4 compaction summaries and kept suffix stay ordered", () => {
   ]).length, 3);
 });
 
-check("transcript keeps opening goal and obeys UTF-8 byte bound", () => {
+check("transcript anchors on the newest request and obeys UTF-8 byte bound", () => {
   const transcript = frameTranscript([
     { role: "user", content: "总体目标：修复持久化并发布" },
     { role: "assistant", content: [{ type: "text", text: "已完成第一阶段" }] },
@@ -90,8 +90,36 @@ check("transcript keeps opening goal and obeys UTF-8 byte bound", () => {
   ], 1, 160);
   assert.ok(Buffer.byteLength(transcript, "utf8") <= 160);
   const parsed = JSON.parse(transcript) as { goal: string; recent: Array<{ text: string }> };
-  assert.equal(parsed.goal, "总体目标：修复持久化并发布");
+  // The newest request is already inside the window, so it must not be duplicated as goal.
+  assert.equal(parsed.goal, "");
   assert.equal(parsed.recent.length, 1);
+  assert.equal(parsed.recent[0]?.text, "下一步继续验证");
+});
+
+check("a drifting session never resurfaces the opening request as the goal", () => {
+  const transcript = frameTranscript([
+    { role: "user", content: "把 OpenRouter 模型改成 glm5.3flash" },
+    { role: "assistant", content: [{ type: "text", text: "已改完并验证" }] },
+    { role: "user", content: "回退 dsh 并修复失效插件" },
+    { role: "assistant", content: [{ type: "text", text: "已推送三个仓库" }] },
+    { role: "assistant", content: [{ type: "text", text: "在补回归测试" }] },
+  ], 2, 4000);
+  const parsed = JSON.parse(transcript) as { goal: string; recent: Array<{ text: string }> };
+  assert.ok(!parsed.goal.includes("glm5.3flash"), "stale opening must never become the goal");
+  assert.ok(parsed.goal.includes("回退"), "goal must carry the current request");
+  assert.ok(!parsed.recent.some((entry) => entry.text.includes("glm5.3flash")));
+});
+
+check("tool result bodies stay out of the recap window", () => {
+  const transcript = frameTranscript([
+    { role: "user", content: "查一下版本" },
+    { role: "assistant", content: [{ type: "toolCall", name: "bash", id: "c1" }] },
+    { role: "toolResult", content: "x".repeat(5000) },
+    { role: "assistant", content: [{ type: "text", text: "0.1.1-rc.2" }] },
+  ], 3, 4000);
+  const parsed = JSON.parse(transcript) as { recent: Array<{ role: string; text: string }> };
+  assert.ok(!transcript.includes("xxxx"), "raw tool output must not be framed");
+  assert.deepEqual(parsed.recent.map((entry) => entry.role), ["user", "assistant", "assistant"]);
 });
 
 check("tiny transcript budgets stay valid and bounded", () => {

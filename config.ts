@@ -23,7 +23,7 @@ export const DEFAULT_CONFIG: RecapConfig = {
   enabled: true,
   idleMs: 180_000,
   minTurns: 3,
-  recentMessages: 30,
+  recentMessages: 80,
   maxChars: 400,
   maxInputChars: 24_000,
   maxOutputTokens: 2_048,
