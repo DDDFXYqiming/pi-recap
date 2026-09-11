@@ -4,7 +4,7 @@
 
 **A session-recap plugin for the Pi Coding Agent TUI.** Switch to another window and it generates a short recap in the background. When you come back, a single line above the editor summarizes the session's overall goal, completed progress, and the one next action.
 
-Current version: **0.2.0**
+Current version: **0.2.1**
 
 ## Why it exists
 
@@ -131,8 +131,8 @@ Only the latest valid snapshot on a branch is read back, so each branch keeps ex
 
 | Item | Version or range |
 | --- | --- |
-| pi-recap | `0.2.0` (`package.json`) |
-| `@earendil-works/pi-coding-agent` | `>=0.84.4 <0.85.0` (peerDependency) |
+| pi-recap | `0.2.1` (`package.json`) |
+| `@earendil-works/pi-coding-agent` | `>=0.84.4 <0.86.0` (peerDependency) |
 | Node.js | `>=22.19.0` (matches the Pi runtime range; offline tests run `.ts` directly with node) |
 | Terminal | 1004 focus reporting required for automatic mode (Windows Terminal, xterm, iTerm2, kitty, wezterm, …); otherwise manual |
 

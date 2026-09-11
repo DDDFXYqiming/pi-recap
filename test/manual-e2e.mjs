@@ -16,6 +16,8 @@ const SESSIONS = path.join(ROOT, "sessions");
 const EXT = path.join(PKG, "index.ts");
 const PI_JS = process.env.PI_E2E_PI_JS ?? path.join(PKG, "node_modules", "@earendil-works", "pi-coding-agent", "dist", "bundle", "cli.js");
 const MODEL = process.env.PI_E2E_MODEL ?? "aliyun-tokenplan/qwen3.8-flash";
+const [MODEL_PROVIDER, ...MODEL_ID_PARTS] = MODEL.split("/");
+const MODEL_ID = MODEL_ID_PARTS.join("/") || MODEL_PROVIDER;
 const THINKING = process.env.PI_E2E_THINKING ?? "high";
 const TIMEOUT = Number(process.env.PI_E2E_TIMEOUT_MS ?? 300_000);
 
@@ -217,7 +219,7 @@ async function main() {
     const recapContextMessages = entries.filter((entry) => entry.type === "custom_message" && entry.customType === "pi-recap/state");
     const selectedModel = startupState?.model;
     const selectedModelText = selectedModel ? `${selectedModel.provider}/${selectedModel.id}` : "unknown";
-    record("requested-model-selected", selectedModel?.provider === "aliyun-tokenplan" && selectedModel?.id === "qwen3.8-flash", `${selectedModelText}`);
+    record("requested-model-selected", selectedModel?.provider === MODEL_PROVIDER && selectedModel?.id === MODEL_ID, `expected=${MODEL}, got=${selectedModelText}`);
     record("requested-thinking-level-applied", startupState?.thinkingLevel === THINKING || (THINKING === "high" && startupState?.thinkingLevel === "xhigh"), `requested=${THINKING}, effective=${startupState?.thinkingLevel ?? "unknown"}`);
     record("manual-command-completed", manualResponse?.success === true && manualResponse?.command === "prompt", manualResponse ? `success=${manualResponse.success}` : "no response");
     record("manual-command-does-not-start-agent", runs === 3, `runs=${runs}, settled=${settled}`);

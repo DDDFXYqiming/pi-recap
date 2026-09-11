@@ -4,7 +4,7 @@
 
 **Pi Coding Agent 的 TUI 会话回顾插件**。你切走终端窗口，它在后台生成一份简短回顾；回到终端时，编辑器上方一行卡片概括当前会话的整体目标、已完成进展和下一步动作。
 
-当前版本：**0.2.0**
+当前版本：**0.2.1**
 
 ## 为什么需要它
 
@@ -131,8 +131,8 @@ pi-recap: automatic on; focused; turns=7; state=ready; anchor=3f2a91c04b7d
 
 | 项目 | 版本或范围 |
 | --- | --- |
-| pi-recap | `0.2.0`（`package.json`） |
-| `@earendil-works/pi-coding-agent` | `>=0.84.4 <0.85.0`（peerDependency） |
+| pi-recap | `0.2.1`（`package.json`） |
+| `@earendil-works/pi-coding-agent` | `>=0.84.4 <0.86.0`（peerDependency） |
 | Node.js | `>=22.19.0`（与 Pi 运行时范围一致，离线测试直接用 node 跑 `.ts`） |
 | 终端 | 需要支持 1004 focus reporting（如 Windows Terminal、xterm、iTerm2、kitty、wezterm）；不支持则自动退化为手动 |
 
