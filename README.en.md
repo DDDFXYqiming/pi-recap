@@ -41,8 +41,9 @@ pi install git:github.com/DDDFXYqiming/pi-recap
 For local development:
 
 ```powershell
-git clone https://github.com/DDDFXYqiming/pi-recap D:\AI_Projects\pi-recap
-pi -e D:\AI_Projects\pi-recap\index.ts
+git clone https://github.com/DDDFXYqiming/pi-recap
+cd pi-recap
+pi -e .\index.ts
 ```
 
 After editing the source, make the running Pi reload it: `/reload`, or restart `pi`. The load line on stderr tells you which build is in memory:
@@ -143,7 +144,7 @@ npm test              # typecheck + 5 offline suites
 npm run test:e2e:manual
 ```
 
-The offline suites cover the state machine, the presence adapter, config parsing with atomic save, auxiliary request construction, and the extension lifecycle contract; none of them need a network or a terminal. The manual CLI E2E uses a temporary session directory and Pi RPC, defaulting to `aliyun-tokenplan/qwen3.8-flash` with `--thinking high`, overridable through `PI_E2E_MODEL` and `PI_E2E_THINKING`. Real window switching is best verified in an interactive local TUI.
+Offline tests cover the state machine, presence adapter, configuration, atomic writes, auxiliary requests and extension lifecycle. Manual CLI E2E uses a temporary session directory and Pi RPC. Set `PI_E2E_MODEL` and `PI_E2E_THINKING` to a configured model and supported thinking level. Verify terminal focus behavior in an interactive TUI.
 
 | File | Responsibility |
 | --- | --- |

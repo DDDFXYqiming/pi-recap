@@ -41,8 +41,9 @@ pi install git:github.com/DDDFXYqiming/pi-recap
 本地开发：
 
 ```powershell
-git clone https://github.com/DDDFXYqiming/pi-recap D:\AI_Projects\pi-recap
-pi -e D:\AI_Projects\pi-recap\index.ts
+git clone https://github.com/DDDFXYqiming/pi-recap
+cd pi-recap
+pi -e .\index.ts
 ```
 
 改过源码需要让运行中的 Pi 重新加载：`/reload`，或重启 `pi`。启动时 stderr 会打一行加载日志，可用来确认内存里加载的是哪一版：
@@ -143,7 +144,7 @@ npm test              # typecheck + 5 组离线测试
 npm run test:e2e:manual
 ```
 
-离线测试覆盖状态机、presence adapter、配置解析与原子写、辅助请求构造和扩展生命周期契约，全部无需网络和终端。手动 CLI E2E 使用临时 session 目录、Pi RPC，默认走 `aliyun-tokenplan/qwen3.8-flash` + `--thinking high`，可用 `PI_E2E_MODEL` 和 `PI_E2E_THINKING` 覆盖。真实窗口切换带来的 focus 行为适合在本机交互 TUI 里验证。
+离线测试覆盖状态机、presence adapter、配置解析、原子写入、辅助请求构造和扩展生命周期。手动 CLI E2E 使用临时会话目录和 Pi RPC，可通过 `PI_E2E_MODEL` 与 `PI_E2E_THINKING` 指定已配置的模型及思考等级。终端焦点行为需在交互 TUI 中验证。
 
 | 文件 | 职责 |
 | --- | --- |
