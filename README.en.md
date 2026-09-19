@@ -52,6 +52,8 @@ After editing the source, make the running Pi reload it: `/reload`, or restart `
 [pi-recap] loaded (idleMs=180000 minTurns=3 maxChars=400 maxOutputTokens=2048)
 ```
 
+See [development](docs/development.md) for build, test and regression commands.
+
 ## Usage
 
 ```text
@@ -136,23 +138,6 @@ Only the latest valid snapshot on a branch is read back, so each branch keeps ex
 | `@earendil-works/pi-coding-agent` | `>=0.84.4 <0.86.0` (peerDependency) |
 | Node.js | `>=22.19.0` (matches the Pi runtime range; offline tests run `.ts` directly with node) |
 | Terminal | 1004 focus reporting required for automatic mode (Windows Terminal, xterm, iTerm2, kitty, wezterm, …); otherwise manual |
-
-## Development and verification
-
-```powershell
-npm test              # typecheck + 5 offline suites
-npm run test:e2e:manual
-```
-
-Offline tests cover the state machine, presence adapter, configuration, atomic writes, auxiliary requests and extension lifecycle. Manual CLI E2E uses a temporary session directory and Pi RPC. Set `PI_E2E_MODEL` and `PI_E2E_THINKING` to a configured model and supported thinking level. Verify terminal focus behavior in an interactive TUI.
-
-| File | Responsibility |
-| --- | --- |
-| `index.ts` | Extension wiring: command, events, card and status line, timers and cancellation |
-| `core.ts` | Pure state machine: branch resolution, turn anchors, snapshot validation and restore, text collapsing |
-| `generation.ts` | Bounded auxiliary request: transcript framing, model routing, response extraction |
-| `presence.ts` | Focus reporting adapter |
-| `config.ts` | Config parsing, bound clamping, atomic write |
 
 ## Related
 
