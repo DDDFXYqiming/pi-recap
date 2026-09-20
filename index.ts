@@ -23,6 +23,16 @@ const CARD_WIDGET_KEY = "pi-recap/card";
 const STATUS_KEY = "pi-recap/status";
 export const FOCUS_INSTALL_DELAY_MS = 25;
 
+// The optional preload owns logging. Normal runs perform no diagnostic I/O.
+function traceStartup(stage: string): void {
+  try {
+    const sink = (globalThis as unknown as Record<symbol, unknown>)[Symbol.for("pi-recap.startup-trace")];
+    if (typeof sink === "function") sink(stage);
+  } catch {
+    // Diagnostics must never change extension behavior.
+  }
+}
+
 interface ActiveCall {
   controller: AbortController;
   generation: number;
@@ -54,7 +64,9 @@ function errorText(error: unknown): string {
 }
 
 export default function piRecap(pi: ExtensionAPI) {
+  traceStartup("recap:factory:enter");
   const config: RecapConfig = loadConfig();
+  traceStartup("recap:config:loaded");
   let currentCtx: ExtensionContext | undefined;
   let snapshot: RecapSnapshot | undefined;
   let generation = 0;
@@ -86,6 +98,7 @@ export default function piRecap(pi: ExtensionAPI) {
     try {
       action();
     } catch {
+      traceStartup("recap:ui:exception-swallowed");
       // UI is best effort; session and model work must remain independent of it.
     }
   }
@@ -131,10 +144,12 @@ export default function piRecap(pi: ExtensionAPI) {
   }
 
   function installPresence(ctx: ExtensionContext) {
+    traceStartup("recap:presence:prepare");
     const presenceRun = ++presenceEpoch;
     stopPresenceInstallation();
 
     if (ctx.mode !== "tui" || process.env.PI_RECAP_FOCUS === "0") {
+      traceStartup("recap:presence:skipped");
       tryUi(ctx, () => ctx.ui.setWidget(PRESENCE_WIDGET_KEY, undefined));
       updateStatus(ctx);
       return;
@@ -145,10 +160,12 @@ export default function piRecap(pi: ExtensionAPI) {
     let componentDisposed = false;
 
     // The widget exists only to expose Pi's TUI/terminal handles. Keep its
-    // factory side-effect free: raw-input registration and DECSET 1004 are
-    // deferred until the startup render/protocol-negotiation tick has passed.
+    // factory free of terminal side effects. The delay is a timing experiment,
+    // NOT a guarantee that Pi has rendered or finished protocol negotiation.
     tryUi(ctx, () => {
+      traceStartup("recap:presence:widget-begin");
       ctx.ui.setWidget(PRESENCE_WIDGET_KEY, (tui: PresenceTui) => {
+        traceStartup("recap:presence:widget-factory");
         capturedTui = tui;
         return {
           render: () => [],
@@ -162,11 +179,14 @@ export default function piRecap(pi: ExtensionAPI) {
       });
     });
 
+    traceStartup("recap:presence:widget-returned");
     updateStatus(ctx);
     if (!capturedTui || componentDisposed || presenceRun !== presenceEpoch) return;
 
     const expectedGeneration = generation;
+    traceStartup("recap:presence:scheduled");
     presenceInstallTimer = setTimeout(() => {
+      traceStartup("recap:presence:timer-fired");
       presenceInstallTimer = undefined;
       if (
         componentDisposed ||
@@ -177,6 +197,7 @@ export default function piRecap(pi: ExtensionAPI) {
       const tui = capturedTui;
       if (!tui) return;
 
+      traceStartup("recap:presence:install-begin");
       const installation = installFocusTracking({
         mode: tui.mode,
         terminal: tui.terminal,
@@ -204,6 +225,7 @@ export default function piRecap(pi: ExtensionAPI) {
         return;
       }
 
+      traceStartup(installation.available ? "recap:presence:install-ok" : "recap:presence:unavailable");
       presence = installation;
       presenceAvailable = installation.available;
       focused = installation.focused;
@@ -216,12 +238,16 @@ export default function piRecap(pi: ExtensionAPI) {
     clearTimer();
     cancelCall();
     currentCtx = ctx;
+    traceStartup("recap:restore:branch-begin");
     snapshot = loadRecapState(branch(ctx), config.maxChars);
+    traceStartup("recap:restore:branch-done");
     lastAutomaticError = undefined;
     lastAgentCompleted = false;
     installPresence(ctx);
+    traceStartup("recap:restore:render-begin");
     render(ctx);
     updateStatus(ctx);
+    traceStartup("recap:restore:done");
   }
 
   function armAutomatic(ctx: ExtensionContext | undefined) {
@@ -302,7 +328,16 @@ export default function piRecap(pi: ExtensionAPI) {
     notify(ctx, `pi-recap: ${config.enabled ? "automatic on" : "automatic off"}; ${presenceAvailable ? (focused ? "focused" : "away") : "manual-only"}; turns=${completedTurnCount(entries)}; ${state}${anchor ? `; anchor=${anchor.entryId.slice(0, 12)}` : ""}`);
   }
 
-  pi.on("session_start", (_event, ctx) => restore(ctx));
+  pi.on("session_start", (_event, ctx) => {
+    traceStartup("recap:session-start:enter");
+    try {
+      restore(ctx);
+      traceStartup("recap:session-start:done");
+    } catch (error) {
+      traceStartup("recap:session-start:throw");
+      throw error;
+    }
+  });
   pi.on("session_tree", (_event, ctx) => restore(ctx));
   pi.on("session_before_switch", (_event, ctx) => {
     generation += 1;
@@ -338,6 +373,7 @@ export default function piRecap(pi: ExtensionAPI) {
     armAutomatic(ctx);
   });
   pi.on("session_shutdown", (_event, ctx) => {
+    traceStartup("recap:session-shutdown:enter");
     generation += 1;
     presenceEpoch += 1;
     clearTimer();
@@ -447,5 +483,7 @@ export default function piRecap(pi: ExtensionAPI) {
     },
   });
 
+  traceStartup("recap:factory:registered");
   log(`loaded (idleMs=${config.idleMs} minTurns=${config.minTurns} maxChars=${config.maxChars} maxOutputTokens=${config.maxOutputTokens} focus=${process.env.PI_RECAP_FOCUS === "0" ? "off" : "auto"})`);
+  traceStartup("recap:factory:return");
 }
