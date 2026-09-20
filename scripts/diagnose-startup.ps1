@@ -42,7 +42,10 @@ Write-Host "Case: $Case. Reproduce without changing tabs if possible; no need to
 Write-Host 'If stuck, leave it for about 10 seconds, then Ctrl+C. Logs are already on disk.'
 try {
     $env:PI_STARTUP_TRACE_DIR = $OutputDirectory
-    $env:NODE_OPTIONS = ((@($saved['NODE_OPTIONS'], ('--require "' + $probe + '"')) | Where-Object { $_ }) -join ' ')
+    # Node strips backslashes inside quoted NODE_OPTIONS tokens, so a Windows
+    # path here must use forward slashes or the preload fails with MODULE_NOT_FOUND.
+    $probeOption = '--require "' + ($probe -replace '\\', '/') + '"'
+    $env:NODE_OPTIONS = ((@($saved['NODE_OPTIONS'], $probeOption) | Where-Object { $_ }) -join ' ')
     if ($Case -eq 'focus-off') { $env:PI_RECAP_FOCUS = '0' }
     else { Remove-Item Env:PI_RECAP_FOCUS -ErrorAction SilentlyContinue }
     # No pipe, Tee-Object, redirected stdin/stdout or replacement shell here.

@@ -38,6 +38,18 @@ node --test test/startup-probe.test.mjs  # 独立启动诊断回归，不调用�
 
 脚本不修改 profile、用户配置或 Pi 安装，不重新启动 shell，不重定向 stdin/stdout，不使用管道或 `Tee-Object`。它临时设置 Node preload，调用当前 shell 实际解析到的 `pi` 命令，并在返回时恢复原有环境变量。可用 `-PiCommand` 指定其它启动命令，或用 `-OutputDirectory` 指定日志目录。默认位置是系统临时目录下的 `pi-startup-traces`，每次测试建立独立目录；继承环境的 Node 子进程会各写各的 PID 日志。
 
+### 先用 Pi 自带的分阶段计时
+
+在怀疑扩展之前，可以先让 Pi 自己报出每个扩展的模块导入耗时。`PI_TIMING=1` 会把分阶段计时写到 stderr，`PI_STARTUP_BENCHMARK=1` 会在 `interactive-mode.init()` 之后直接退出，因此不需要手工退出 TUI。交互模式需要真实终端，同时把 stderr 重定向到文件即可留档：
+
+```powershell
+$env:PI_TIMING = '1'; $env:PI_STARTUP_BENCHMARK = '1'
+& pi 2> "$env:TEMP\pi-timing.txt"
+Get-Content "$env:TEMP\pi-timing.txt"
+```
+
+输出里的 `Startup Timings: extensions` 段按扩展给出 `module import` 与 `factory` 两项。若某个扩展的 `module import` 占了大头，卡顿来自该扩展的加载，而不是 recap 的 focus 安装；对照 `pi --no-extensions` 的 TOTAL 可以先量出扩展开销的上限。
+
 ### 日志怎么读
 
 `node-<pid>-<timestamp>.jsonl` 每条包含相对时间、PID、事件名称。先选包含 `recap:factory:return` 的 Pi 进程日志；`no-extensions` 对照则根据 `probe:start` 和终端标记选择。

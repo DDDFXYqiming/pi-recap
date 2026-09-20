@@ -155,6 +155,9 @@ test('real extension checkpoints distinguish registration, session_start and def
   const { stripTypeScriptTypes } = await import('node:module');
   const { runInNewContext } = await import('node:vm');
   const source = readFileSync(new URL('../index.ts', import.meta.url), 'utf8')
+    // A Windows checkout with core.autocrlf=true ends lines with CRLF; normalize before stripping imports,
+    // otherwise the ESM imports survive and the vm sandbox fails with 'Cannot use import statement outside a module'.
+    .replace(/\r\n/g, '\n')
     .replace(/^import\s[\s\S]*?\sfrom\s"[^"]+";\n/gm, '')
     .replace('export default function piRecap', 'function piRecap')
     .replace('export const FOCUS_INSTALL_DELAY_MS', 'const FOCUS_INSTALL_DELAY_MS');
