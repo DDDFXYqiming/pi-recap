@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import piRecap from "../index.ts";
+import piRecap, { FOCUS_INSTALL_DELAY_MS } from "../index.ts";
 import { FOCUS_DISABLE, FOCUS_ENABLE, FOCUS_IN, FOCUS_OUT } from "../presence.ts";
 import { STATE_ENTRY_TYPE, type SessionEntryLike } from "../core.ts";
 
@@ -40,6 +40,7 @@ const ui = {
   },
   setWidget(key: string, content: unknown) {
     if (key === "pi-recap/presence" && typeof content === "function") {
+      presenceComponent?.dispose?.();
       presenceComponent = content(fakeTui, {});
       return;
     }
@@ -106,6 +107,10 @@ assert.ok(events.has("session_shutdown"));
 assert.ok(commands.has("recap"));
 
 await events.get("session_start")?.({}, context);
+// Presence setup must not mutate raw terminal state inside session_start/widget construction.
+assert.deepEqual(terminalWrites, []);
+assert.equal(managedListeners.size, 0);
+await new Promise((resolve) => setTimeout(resolve, FOCUS_INSTALL_DELAY_MS + 15));
 assert.deepEqual(terminalWrites, [FOCUS_ENABLE]);
 assert.equal(managedListeners.size, 1);
 assert.ok(registeredInput);
@@ -152,4 +157,26 @@ assert.doesNotMatch(statusWrites.at(-1) ?? "", /failed:/);
 await events.get("session_shutdown")?.({}, context);
 assert.deepEqual(terminalWrites, [FOCUS_ENABLE, FOCUS_DISABLE]);
 assert.equal(managedListeners.size, 0);
+
+// Shutdown before the deferred installer fires must leave terminal mode untouched.
+const writesBeforeCancelledInstall = terminalWrites.length;
+await events.get("session_start")?.({}, context);
+await events.get("session_shutdown")?.({}, context);
+await new Promise((resolve) => setTimeout(resolve, FOCUS_INSTALL_DELAY_MS + 15));
+assert.equal(terminalWrites.length, writesBeforeCancelledInstall);
+assert.equal(managedListeners.size, 0);
+
+// Diagnostic escape hatch: PI_RECAP_FOCUS=0 must not enable DECSET 1004 or raw listeners.
+const previousFocusEnv = process.env.PI_RECAP_FOCUS;
+process.env.PI_RECAP_FOCUS = "0";
+const writesBeforeDisabledFocus = terminalWrites.length;
+await events.get("session_start")?.({}, context);
+await new Promise((resolve) => setTimeout(resolve, FOCUS_INSTALL_DELAY_MS + 15));
+assert.equal(terminalWrites.length, writesBeforeDisabledFocus);
+assert.equal(managedListeners.size, 0);
+assert.match(statusWrites.at(-1) ?? "", /manual-only/);
+await events.get("session_shutdown")?.({}, context);
+if (previousFocusEnv === undefined) delete process.env.PI_RECAP_FOCUS;
+else process.env.PI_RECAP_FOCUS = previousFocusEnv;
+
 console.log(`PASS lifecycle contract (${events.size} events, ${commands.size} command, ${entries.filter((entry) => entry.type === "custom" && entry.customType === STATE_ENTRY_TYPE).length} persisted states)`);

@@ -49,7 +49,7 @@ pi -e .\index.ts
 改过源码需要让运行中的 Pi 重新加载：`/reload`，或重启 `pi`。启动时 stderr 会打一行加载日志，可用来确认内存里加载的是哪一版：
 
 ```text
-[pi-recap] loaded (idleMs=180000 minTurns=3 maxChars=400 maxOutputTokens=2048)
+[pi-recap] loaded (idleMs=180000 minTurns=3 maxChars=400 maxOutputTokens=2048 focus=auto)
 ```
 
 构建、测试与回归命令见 [开发与验证](docs/development.md)。
@@ -87,7 +87,9 @@ pi-recap: automatic on; focused; turns=7; state=ready; anchor=3f2a91c04b7d
 | RPC 模式 | ❌ | ✅ | 提供命令所需的非阻塞 UI 通道 |
 | print 模式（`-p`） | ❌ | ✅ | 同上，无终端焦点概念 |
 
-终端不支持 1004 focus reporting 时同样退化为手动，状态行显示 `manual-only`。
+终端不支持 1004 focus reporting 时同样退化为手动，状态行显示 `manual-only`。presence adapter 会在 Pi 完成首个启动渲染后再启用 1004 focus reporting，避免把 raw-input/focus 协议切换塞进 widget factory 的同步启动路径。
+
+排查 Windows Terminal/ConPTY 启动卡顿时，可临时设置 `PI_RECAP_FOCUS=0`：当前 Pi 进程不会注册 raw terminal listener，也不会发送 `\\x1b[?1004h`，自动回顾退化为 `manual-only`，手动 `/recap` 不受影响。PowerShell 示例：`$env:PI_RECAP_FOCUS="0"; pi`。这个开关不写入配置文件。
 
 ## 配置
 

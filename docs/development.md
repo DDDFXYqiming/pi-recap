@@ -13,6 +13,22 @@ npm run test:e2e:manual
 
 离线测试覆盖状态机、presence adapter、配置解析、原子写入、辅助请求构造和扩展生命周期。手动 CLI E2E 使用临时会话目录和 Pi RPC，可通过 `PI_E2E_MODEL` 与 `PI_E2E_THINKING` 指定已配置的模型及思考等级。
 
+## Windows TUI 启动回归
+
+自动 focus 路径依赖真实 Windows Terminal/ConPTY，RPC E2E 覆盖不到。启动期 presence 安装会延迟 25 ms，使 widget factory 本身不注册 raw listener、不发送 DECSET 1004。排查首启卡死时先做 A/B：
+
+```powershell
+# 正常 focus tracking
+Remove-Item Env:PI_RECAP_FOCUS -ErrorAction SilentlyContinue
+pi
+
+# 完全关闭 focus tracking；应显示 manual-only，/recap 仍可用
+$env:PI_RECAP_FOCUS="0"
+pi
+```
+
+若只有第一种路径会卡，问题范围可直接收敛到 terminal focus/raw-input 链路。退出测试后可用 `Remove-Item Env:PI_RECAP_FOCUS` 恢复默认行为。
+
 ## 文件
 
 | 文件 | 职责 |

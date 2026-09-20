@@ -21,6 +21,7 @@ import { installFocusTracking, type PresenceInstallation, type PresenceTui } fro
 const PRESENCE_WIDGET_KEY = "pi-recap/presence";
 const CARD_WIDGET_KEY = "pi-recap/card";
 const STATUS_KEY = "pi-recap/status";
+export const FOCUS_INSTALL_DELAY_MS = 25;
 
 interface ActiveCall {
   controller: AbortController;
@@ -60,6 +61,8 @@ export default function piRecap(pi: ExtensionAPI) {
   let timer: ReturnType<typeof setTimeout> | undefined;
   let activeCall: ActiveCall | undefined;
   let presence: PresenceInstallation | undefined;
+  let presenceInstallTimer: ReturnType<typeof setTimeout> | undefined;
+  let presenceEpoch = 0;
   let presenceAvailable = false;
   let focused = true;
   let lastAgentCompleted = false;
@@ -118,52 +121,94 @@ export default function piRecap(pi: ExtensionAPI) {
     }
   }
 
-  function installPresence(ctx: ExtensionContext) {
+  function stopPresenceInstallation() {
+    if (presenceInstallTimer) clearTimeout(presenceInstallTimer);
+    presenceInstallTimer = undefined;
     presence?.dispose();
     presence = undefined;
     presenceAvailable = false;
     focused = true;
-    if (ctx.mode !== "tui") {
+  }
+
+  function installPresence(ctx: ExtensionContext) {
+    const presenceRun = ++presenceEpoch;
+    stopPresenceInstallation();
+
+    if (ctx.mode !== "tui" || process.env.PI_RECAP_FOCUS === "0") {
       tryUi(ctx, () => ctx.ui.setWidget(PRESENCE_WIDGET_KEY, undefined));
       updateStatus(ctx);
       return;
     }
+
     currentCtx = ctx;
+    let capturedTui: PresenceTui | undefined;
+    let componentDisposed = false;
+
+    // The widget exists only to expose Pi's TUI/terminal handles. Keep its
+    // factory side-effect free: raw-input registration and DECSET 1004 are
+    // deferred until the startup render/protocol-negotiation tick has passed.
     tryUi(ctx, () => {
       ctx.ui.setWidget(PRESENCE_WIDGET_KEY, (tui: PresenceTui) => {
-        const installation = installFocusTracking({
-          mode: tui.mode,
-          terminal: tui.terminal,
-          // Let Pi rebind this listener when it replaces regular/fullscreen TUI renderers.
-          addInputListener: (listener) => ctx.ui.onTerminalInput(listener),
-        }, (nextFocused) => {
-          focused = nextFocused;
-          if (nextFocused) {
-            clearTimer();
-            cancelCall();
-            render(currentCtx);
-          } else {
-            armAutomatic(currentCtx);
-          }
-          updateStatus(currentCtx);
-        });
-        presence = installation;
-        presenceAvailable = installation.available;
-        focused = installation.focused;
-        updateStatus(currentCtx);
+        capturedTui = tui;
         return {
           render: () => [],
           invalidate() {},
           dispose() {
-            installation.dispose();
-            if (presence === installation) {
-              presence = undefined;
-              presenceAvailable = false;
-            }
+            componentDisposed = true;
+            if (presenceRun !== presenceEpoch) return;
+            stopPresenceInstallation();
           },
         };
       });
     });
+
+    updateStatus(ctx);
+    if (!capturedTui || componentDisposed || presenceRun !== presenceEpoch) return;
+
+    const expectedGeneration = generation;
+    presenceInstallTimer = setTimeout(() => {
+      presenceInstallTimer = undefined;
+      if (
+        componentDisposed ||
+        presenceRun !== presenceEpoch ||
+        expectedGeneration !== generation
+      ) return;
+
+      const tui = capturedTui;
+      if (!tui) return;
+
+      const installation = installFocusTracking({
+        mode: tui.mode,
+        terminal: tui.terminal,
+        // Let Pi rebind this listener when it replaces regular/fullscreen TUI renderers.
+        addInputListener: (listener) => ctx.ui.onTerminalInput(listener),
+      }, (nextFocused) => {
+        if (componentDisposed || presenceRun !== presenceEpoch) return;
+        focused = nextFocused;
+        if (nextFocused) {
+          clearTimer();
+          cancelCall();
+          render(currentCtx);
+        } else {
+          armAutomatic(currentCtx);
+        }
+        updateStatus(currentCtx);
+      });
+
+      if (
+        componentDisposed ||
+        presenceRun !== presenceEpoch ||
+        expectedGeneration !== generation
+      ) {
+        installation.dispose();
+        return;
+      }
+
+      presence = installation;
+      presenceAvailable = installation.available;
+      focused = installation.focused;
+      updateStatus(currentCtx);
+    }, FOCUS_INSTALL_DELAY_MS);
   }
 
   function restore(ctx: ExtensionContext) {
@@ -294,16 +339,15 @@ export default function piRecap(pi: ExtensionAPI) {
   });
   pi.on("session_shutdown", (_event, ctx) => {
     generation += 1;
+    presenceEpoch += 1;
     clearTimer();
     cancelCall();
+    stopPresenceInstallation();
     tryUi(ctx, () => {
       ctx.ui.setWidget(CARD_WIDGET_KEY, undefined);
       ctx.ui.setWidget(PRESENCE_WIDGET_KEY, undefined);
       ctx.ui.setStatus(STATUS_KEY, undefined);
     });
-    presence?.dispose();
-    presence = undefined;
-    presenceAvailable = false;
   });
 
   pi.on("input", (_event, ctx) => {
@@ -403,5 +447,5 @@ export default function piRecap(pi: ExtensionAPI) {
     },
   });
 
-  log(`loaded (idleMs=${config.idleMs} minTurns=${config.minTurns} maxChars=${config.maxChars} maxOutputTokens=${config.maxOutputTokens})`);
+  log(`loaded (idleMs=${config.idleMs} minTurns=${config.minTurns} maxChars=${config.maxChars} maxOutputTokens=${config.maxOutputTokens} focus=${process.env.PI_RECAP_FOCUS === "0" ? "off" : "auto"})`);
 }

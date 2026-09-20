@@ -49,7 +49,7 @@ pi -e .\index.ts
 After editing the source, make the running Pi reload it: `/reload`, or restart `pi`. The load line on stderr tells you which build is in memory:
 
 ```text
-[pi-recap] loaded (idleMs=180000 minTurns=3 maxChars=400 maxOutputTokens=2048)
+[pi-recap] loaded (idleMs=180000 minTurns=3 maxChars=400 maxOutputTokens=2048 focus=auto)
 ```
 
 See [development](docs/development.md) for build, test and regression commands.
@@ -87,7 +87,9 @@ pi-recap: automatic on; focused; turns=7; state=ready; anchor=3f2a91c04b7d
 | RPC mode | ❌ | ✅ | Provides the non-blocking UI channel the command needs |
 | Print mode (`-p`) | ❌ | ✅ | Same channel; there is no terminal focus concept |
 
-Terminals without 1004 focus reporting degrade to manual as well, and the status line reads `manual-only`.
+Terminals without 1004 focus reporting degrade to manual as well, and the status line reads `manual-only`. The presence adapter enables 1004 focus reporting only after Pi has crossed its first startup render, keeping raw-input/focus protocol mutation out of the synchronous widget-factory path.
+
+For Windows Terminal/ConPTY startup diagnosis, set `PI_RECAP_FOCUS=0` temporarily. That Pi process will register no raw terminal listener and send no `\\x1b[?1004h`; automatic recaps degrade to `manual-only` while manual `/recap` keeps working. PowerShell example: `$env:PI_RECAP_FOCUS="0"; pi`. The switch is process-local and is not persisted to the config file.
 
 ## Configuration
 
