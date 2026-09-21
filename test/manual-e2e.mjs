@@ -242,6 +242,9 @@ async function main() {
     record("recap-is-one-line", !recapText.includes("\n"), JSON.stringify(recapText.slice(0, 80)));
     record("recap-has-no-transcript-preamble", !/^(我看到了|我看到以|这段对话|以上对话|以下是|好的|总结|I see|Here is|Here's|In summary|Sure)/i.test(recapText), recapText.slice(0, 40));
     record("recap-fits-the-card", recapText.length > 0 && recapText.length <= 400, `length=${recapText.length}`);
+    // This run's transcript is Chinese. An English answer means the model mirrored the
+    // language of the instructions instead of the language the user writes in.
+    record("recap-follows-user-language", /[\u3400-\u4dbf\u4e00-\u9fff]/.test(recapText), recapText.slice(0, 40));
     const thinkOpen = "<" + "think";
     record("recap-has-no-reasoning-leak", recapText.length > 0 && !recapText.trimStart().toLowerCase().startsWith(thinkOpen), recapText.slice(0, 40) || "no text was persisted");
   } finally {
