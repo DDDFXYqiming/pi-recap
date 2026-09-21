@@ -1,5 +1,5 @@
 export const STATE_ENTRY_TYPE = "pi-recap/state";
-export const MAX_RECAP_CHARS = 400;
+export const MAX_RECAP_CHARS = 1200;
 
 export type RecapSource = "automatic" | "manual";
 
@@ -86,55 +86,78 @@ export function contentText(content: unknown): string {
 /** Convert Pi's compaction-aware entry list into recap-readable messages. */
 export function conversationMessages(entries: readonly SessionEntryLike[]): MessageLike[] {
   const messages: MessageLike[] = [];
+  // Real conversation only. Checkpoints travel in their own frame field so a
+  // compaction summary can never be mistaken for something the human typed.
   for (const entry of entries) {
     if (entry.type === "message" && entry.message) messages.push(entry.message);
-    if (entry.type === "compaction" && typeof entry.summary === "string") {
-      messages.push({ role: "user", content: `[Earlier session summary]\n${entry.summary}` });
-    }
-    if (entry.type === "branch_summary" && typeof entry.summary === "string") {
-      messages.push({ role: "user", content: `[Earlier branch summary]\n${entry.summary}` });
-    }
   }
   return messages;
 }
 
-const SENTENCE_TERMINATORS = "。！？!?；;，,";
-
-function isRecapBoundary(text: string, index: number): boolean {
-  const char = text[index]!;
-  if (SENTENCE_TERMINATORS.includes(char)) return true;
-  // A dot only ends a sentence when the next character cannot continue the token,
-  // so "127.0.0.1" and "v1.2" never become cut points.
-  return char === "." && (index === text.length - 1 || /\s/.test(text[index + 1] ?? ""));
+/** The newest usable compaction or branch checkpoint, kept out of the user-role samples. */
+export function historyCheckpoint(entries: readonly SessionEntryLike[]): string {
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const entry = entries[index];
+    if (entry?.type !== "compaction" && entry?.type !== "branch_summary") continue;
+    const summary = typeof entry.summary === "string" ? stripThink(entry.summary).replace(/\s+/g, " ").trim() : "";
+    if (summary) return summary;
+  }
+  return "";
 }
 
 /**
- * Fit a model answer into the card budget.
- *
- * The recap is one compact block of prose, so an over-long answer is cut at the last
- * sentence boundary that still fits rather than mid-clause, and never with a marker
- * string inside the sentence.
+ * Sentence endings that leave a clause readable on its own. Commas and colons
+ * deliberately do not qualify: a card that stops after "，" is a bug, not a summary.
  */
-export function clampRecapText(text: string, maxChars: number): string {
-  const trimmed = text.trim();
-  if (trimmed.length <= maxChars) return trimmed;
-  const budget = Math.max(1, maxChars - 1);
-  const window = trimmed.slice(0, budget);
-  let keep = "";
-  for (let index = window.length - 1; index >= Math.floor(budget / 2); index -= 1) {
-    if (isRecapBoundary(window, index)) {
-      keep = window.slice(0, index + 1);
-      break;
+function lastSentenceEnd(text: string): number {
+  let end = -1;
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index]!;
+    if ("。！？；".includes(char)) {
+      end = index + 1;
+      continue;
     }
+    if (".!?;".includes(char) && (index === text.length - 1 || /\s/.test(text[index + 1]!))) end = index + 1;
   }
-  if (!keep) {
-    // No terminator in range: cut on a word only when the budget really lands inside a
-    // word, otherwise a Latin answer loses the last word it still had room for.
-    const landsMidWord = !/\s/.test(trimmed[budget] ?? " ");
-    const space = landsMidWord ? window.lastIndexOf(" ") : -1;
-    keep = space >= Math.floor(budget / 2) ? window.slice(0, space) : window;
+  return end;
+}
+
+/** Drop a trailing fragment so the text always ends on a finished sentence. */
+export function trimToSentence(text: string): string {
+  const end = lastSentenceEnd(text);
+  return end < 0 ? text : text.slice(0, end).trimEnd();
+}
+
+/** The same rule with no salvage: without one finished sentence there is nothing to show. */
+export function completeSentences(text: string): string | undefined {
+  if (lastSentenceEnd(text) < 0) return undefined;
+  return trimToSentence(text);
+}
+
+/**
+ * Some chat-completions endpoints emit chain-of-thought inline in the text channel
+ * instead of using a separate thinking block. That prose is never recap content, so it
+ * is removed before the answer reaches the card. The tag names are matched in parts
+ * because agent tool-call payloads strip the literal token.
+ */
+export function stripThink(text: string): string {
+  const open = "<\\s*(?:think(?:ing)?|thought|reasoning)\\s*>";
+  const close = "<\\s*/\\s*(?:think(?:ing)?|thought|reasoning)\\s*>";
+  return text
+    .replace(new RegExp(`${open}[\\s\\S]*?${close}`, "gi"), "")
+    .replace(new RegExp(`${open}[\\s\\S]*$`, "i"), "");
+}
+
+/** Newest non-empty user messages, oldest first. Used only as language samples. */
+export function languageSamples(messages: readonly MessageLike[], limit = 3): string[] {
+  const samples: string[] = [];
+  for (let index = messages.length - 1; index >= 0 && samples.length < limit; index -= 1) {
+    const message = messages[index];
+    if (!message || message.role !== "user") continue;
+    const text = stripThink(contentText(message.content)).trim();
+    if (text) samples.push(text);
   }
-  return `${keep.replace(/[\s，,、；;：:.…]+$/, "")}…`;
+  return samples.reverse();
 }
 
 export function shortenText(text: string, maxChars: number): string {
@@ -149,6 +172,7 @@ export function shortenText(text: string, maxChars: number): string {
 
 export function frameTranscript(
   messages: readonly MessageLike[],
+  historySummary: string,
   recentMessages: number,
   maxBytes: number,
 ): string {
@@ -169,18 +193,21 @@ export function frameTranscript(
       break;
     }
   }
-  const anchor = anchorIndex < 0 ? "" : contentText(conversation[anchorIndex]?.content).replace(/\s+/g, " ").trim();
+  const plain = (value: string) => stripThink(value).replace(/\s+/g, " ").trim();
+  const anchor = anchorIndex < 0 ? "" : plain(contentText(conversation[anchorIndex]?.content));
   const recent = selected
     .map((message) => ({
       role: typeof message.role === "string" ? message.role : "unknown",
-      text: contentText(message.content).replace(/\s+/g, " ").trim(),
+      text: plain(contentText(message.content)),
     }))
     .filter((entry) => entry.text.length > 0);
-  const frame: { goal: string; recent: Array<{ role: string; text: string }> } = {
+  const frame: { historySummary: string; goal: string; recent: Array<{ role: string; text: string }> } = {
+    historySummary: plain(historySummary),
     goal: anchorIndex >= start ? "" : anchor,
     recent,
   };
   const values: Array<{ get(): string; set(value: string): void }> = [
+    { get: () => frame.historySummary, set: (value) => { frame.historySummary = value; } },
     { get: () => frame.goal, set: (value) => { frame.goal = value; } },
     ...recent.map((entry) => ({ get: () => entry.text, set: (value: string) => { entry.text = value; } })),
   ];
@@ -201,8 +228,21 @@ export function frameTranscript(
     json = stringify();
   }
   if (Buffer.byteLength(json, "utf8") <= byteLimit) return json;
-  const empty = JSON.stringify({ goal: "", recent: [] });
+  const empty = JSON.stringify({ historySummary: "", goal: "", recent: [] });
   return Buffer.byteLength(empty, "utf8") <= byteLimit ? empty : "";
+}
+
+/** True when the frame still carries something a recap can be written from. */
+export function framedTranscriptHasContent(framed: string): boolean {
+  if (!framed) return false;
+  try {
+    const value = JSON.parse(framed) as Partial<{ historySummary: string; goal: string; recent: unknown[] }>;
+    return (value.historySummary ?? "") !== ""
+      || (value.goal ?? "") !== ""
+      || (Array.isArray(value.recent) && value.recent.length > 0);
+  } catch {
+    return false;
+  }
 }
 
 export function completedTurnCount(entries: readonly SessionEntryLike[]): number {

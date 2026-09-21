@@ -14,7 +14,7 @@ node --test test/startup-probe.test.mjs  # 独立启动诊断回归，不调用�
 
 离线测试覆盖状态机、presence adapter、配置解析、原子写入、辅助请求构造和扩展生命周期。手动 CLI E2E 使用临时会话目录和 Pi RPC，可通过 `PI_E2E_MODEL` 与 `PI_E2E_THINKING` 指定已配置的模型及思考等级。上述测试不能代替 Windows Terminal/ConPTY 冷启动验证。
 
-手动 E2E 会先向会话里塞一轮“loud”的 markdown 长汇报（加粗、行内代码、有序列表、冒号引导句），再 `/recap`，用来量提示词的合规度，断言包括：回顾正文不含 markdown 语法、不折行、不以描述转录的引导句开头、不超 `maxChars`、不含思考标签泄漏。换模型时这几项是主要回归信号：实测 MiniMax-M3 会把思考写进正文通道，因此 `manual-recap-persisted` 会故意失败（插件拒收），而 `aliyun-deepseek/qwen3.8-flash`、`deepseek/deepseek-v4-flash` 应全部通过。
+手动 E2E 会先向会话里塞一轮“loud”的 markdown 长汇报（加粗、行内代码、有序列表、冒号引导句），再 `/recap`，用来量提示词的合规度。输出契约断言：不含 markdown 语法、不折行、不以描述转录的引导句开头、不超 `maxChars`、也不能短到没内容（≥ 60 字）、必须以完整句子结尾、语言必须跟转录一致（转录是中文则卡片必须含中文）、不含思考标签残留。这几项就是换模型时的主要回归信号：`aliyun-deepseek/qwen3.8-flash` 应 16/16；把思考写进正文通道的模型（实测 MiniMax-M3）现在会被剥掉思考块后正常出卡片，只有剥完什么都不剩才报错。`deepseek/deepseek-v4-flash` 实测首轮可卡4 分钟以上，看着像上游慢而不是插件问题。
 
 ## Windows TUI 首启卡住
 
@@ -78,8 +78,8 @@ Get-Content "$env:TEMP\pi-timing.txt"
 | 文件 | 职责 |
 | --- | --- |
 | `index.ts` | 命令、事件、卡片与状态行、定时器与取消；可选启动检查点 |
-| `core.ts` | 纯状态机、分支与快照、文本收敛 |
-| `generation.ts` | 有界辅助请求 |
+| `core.ts` | 纯状态机、分支与快照、转录组装与句子安全收敛、思考块剥离、语言取样 |
+| `generation.ts` | 有界辅助请求、输出契约提示词、一次升预算重试 |
 | `presence.ts` | focus reporting adapter |
 | `config.ts` | 配置解析与原子写入 |
 | `scripts/diagnose-startup.ps1` | 保留 cwd、Pi 命令和终端句柄的诊断启动器 |

@@ -22,7 +22,12 @@ assert.equal(parsed.enabled, false);
 assert.equal(parsed.idleMs, 1_000);
 assert.equal(parsed.minTurns, 5);
 assert.equal(parsed.recentMessages, 200);
-assert.equal(parsed.maxChars, 400);
+assert.equal(parsed.maxChars, 999);
+// 999 is inside the card range now that the recap carries 2-4 sentences; only the
+// ceiling clamps.
+assert.equal(parseConfig({ maxChars: 99_999 }).maxChars, 1_200);
+assert.equal(parseConfig({ maxChars: 2 }).maxChars, 80);
+assert.equal(DEFAULT_CONFIG.maxChars, 600);
 assert.equal(parsed.maxInputChars, 1_000);
 assert.equal(parsed.maxOutputTokens, 16);
 assert.equal(parseConfig({ maxOutputTokens: 999_999 }).maxOutputTokens, 16_384);

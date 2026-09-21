@@ -4,7 +4,7 @@
 
 **A session-recap plugin for the Pi Coding Agent TUI.** Switch to another window and it generates a short recap in the background. When you come back, a single line above the editor summarizes the session's overall goal, completed progress, and the one next action.
 
-Current version: **0.2.2**
+Current version: **0.3.0**
 
 ## Why it exists
 
@@ -16,7 +16,7 @@ People step away from the screen for all sorts of reasons, and the session is st
 - By default, requires at least three completed turns and three minutes since the latest completed turn, and never generates twice for the same turn. These two gates keep a brief distraction from producing a pointless recap.
 - `/recap` works on demand at any time; `/recap off` disables automatic recaps only, never the command.
 - Writes the recap in the language the user writes in; the English prompt does not force English output.
-- Displays the result as a card above the editor, capped at 400 characters. The card goes through Pi's own markdown renderer, so a stray `**bold**` or inline code gets styled instead of printed literally, and an over-long answer is cut at a sentence boundary rather than mid-clause. Typing a new message, starting a new turn, switching sessions, or dismissing the banner hides it.
+- Displays the result as a card above the editor: 2 to 4 sentences (roughly 100-200 Chinese characters) within a 600 character ceiling, naming the files, commands, numbers and verdicts instead of staying abstract. The card goes through Pi's own markdown renderer, so a stray `**bold**` or inline code gets styled instead of printed literally, and an answer over budget loses its unfinished sentence rather than ending in an ellipsis. Typing a new message, starting a new turn, switching sessions, or dismissing the banner hides it.
 - Scopes dismissal to the session branch and the completed turn the recap belongs to, so switching away and back does not resurrect a dismissed banner.
 - Persists the recap as a Pi custom session entry (`pi-recap/state`) instead of appending messages, so it stays out of the LLM context. State is restored per active branch after resume, tree navigation, fork, and compaction.
 - Reuses the session's current model by default, with an optional fixed `provider` + `model` route. The auxiliary call sends no thinking level at all, `maxOutputTokens` is only an output ceiling, and `temperature` / `stopSequences` are optional overrides.
@@ -27,7 +27,7 @@ People step away from the screen for all sorts of reasons, and the session is st
 
 1. The presence adapter enables terminal focus reporting (`\x1b[?1004h`) and maps `ESC[I` / `ESC[O` to focused / away, consuming those sequences so normal input is unaffected.
 2. A timer is armed only when the session is away, the latest completed turn is at least `idleMs` old, `minTurns` is satisfied, no turn is left open, and that turn has no recap yet. The delay is computed as `anchor.timestamp + idleMs - now`, so leaving early and leaving late land on the same moment.
-3. The plugin frames bounded input from the current branch (`recentMessages`, `maxInputChars`): tool-result messages are dropped first because raw command output is not intent, then the newest user request anchors the current task. One independent auxiliary request produces the recap, and the prompt states the answer shape as a hard contract: the first character of the reply is the first character of the recap, so framing sentences, labels and closing questions are out, copying the transcript's markdown is out, and length is given per language (60 Chinese characters / 40 English words) over the current task, completed progress and one next step.
+3. The plugin frames bounded input from the current branch (`recentMessages`, `maxInputChars`): tool-result messages are dropped first because raw command output is not intent, the newest user request anchors the current task, and a compaction checkpoint travels in its own `historySummary` field so it can never be mistaken for something the human typed. The prompt states the answer shape as a hard contract: the first character of the reply is the first character of the recap, so framing sentences, labels and closing questions are out, concrete progress and verdicts are in, copying the transcript's markdown is out, and the answer is 2 to 4 complete sentences. Language is never decided in code: a `[recap-language]` directive after the transcript quotes the three newest real user messages verbatim and states that pasted logs and code are not the user's language, falling back to the assistant's reply language when the human only ever pasted material.
 4. Every generation owns an `AbortController` and a runtime generation counter. Regaining focus, a new turn, a session switch, fork, compaction, or a model change cancels the in-flight request, and the anchor is re-checked before anything is committed.
 5. The accepted result is persisted through `pi.appendEntry()` as a custom entry (`structuredClone`d first, because SessionManager retains custom-entry data by reference), then the card and status line are rendered.
 6. An automatic failure never interrupts you with a notification: it is recorded in the status line as `recap on · away · failed: <reason>` and logged to stderr as `[pi-recap] ...`. New input or the next success clears it. A manual `/recap` error is reported directly as an error notification.
@@ -49,7 +49,7 @@ pi -e .\index.ts
 After editing the source, make the running Pi reload it: `/reload`, or restart `pi`. The load line on stderr tells you which build is in memory:
 
 ```text
-[pi-recap] loaded (idleMs=180000 minTurns=3 maxChars=400 maxOutputTokens=2048 focus=auto)
+[pi-recap] loaded (idleMs=180000 minTurns=3 maxChars=600 maxOutputTokens=2048 focus=auto)
 ```
 
 See [development](docs/development.md) for build, test and regression commands.
@@ -101,7 +101,7 @@ Config file: `~/.pi/agent/pi-recap.json`. It is written the first time you run `
   "idleMs": 180000,        // minimum time from the latest completed turn (ms)
   "minTurns": 3,           // completed turns required for an automatic recap
   "recentMessages": 80,    // messages sent to the recap request (1-200, user/assistant only)
-  "maxChars": 400,         // recap text ceiling (80-400)
+  "maxChars": 600,         // recap text ceiling (80-1200)
   "maxInputChars": 24000,  // recap input budget in bytes (1000-200000)
   "maxOutputTokens": 2048, // output token ceiling for the auxiliary call (16-16384)
   "timeoutMs": 30000,      // per-request timeout
@@ -115,9 +115,9 @@ Config file: `~/.pi/agent/pi-recap.json`. It is written the first time you run `
 
 `provider` and `model` must be set together; setting only one is an error. When both are empty the recap follows the model the session actually uses, so it needs no separate route.
 
-The recap is an auxiliary call that sends **no thinking level**: it never inherits the session's thinking level. Inheriting it lets reasoning tokens consume `maxOutputTokens`, so the response carries only a thinking block with no answer text. `maxOutputTokens` is a runaway guard, not a budget - a two-sentence recap measures around 50 tokens and normally never reaches it; if it does, the error names the current ceiling.
+The recap is an auxiliary call that sends **no thinking level**: it never inherits the session's thinking level. Inheriting it lets reasoning tokens consume `maxOutputTokens`, so the response carries only a thinking block with no answer text. `maxOutputTokens` is a runaway guard, not a budget - a 2-4 sentence recap measures around 60 tokens. If a call does hit it, finished sentences are kept as they are; when not one sentence was finished, the call is retried once with a 4x ceiling (up to 4096) before the recap is written off, so a half thought never reaches the card.
 
-Some chat models (MiniMax-M3 in testing) write their reasoning into the text channel instead of a separate thinking block. That answer is refused rather than shown: the card reports `the recap model returned reasoning instead of an answer` and nothing is persisted, so a thought process never lands on screen. Pick a model with a real thinking channel, or turn thinking off for that model.
+Some chat models (MiniMax-M3 in testing) write their reasoning into the text channel instead of a separate thinking block. Those blocks are stripped before the card is built, and the recap shows whatever answer is left; only when nothing visible remains does it report `recap model produced no text`.
 
 ## State and persistence
 
@@ -127,7 +127,7 @@ Recaps are stored in the session history as custom entries of type `pi-recap/sta
 | --- | --- |
 | `version` | Snapshot schema version, currently `1` |
 | `anchorEntryId` | Id of the completed turn this recap belongs to; used for staleness and dismissal scoping |
-| `text` | Recap body, collapsed to one line within `maxChars` |
+| `text` | Recap body, kept within `maxChars` and cut down to finished sentences |
 | `generatedAt` | Generation timestamp |
 | `source` | `automatic` or `manual` |
 | `dismissed` | Whether the banner was dismissed |
@@ -138,7 +138,7 @@ Only the latest valid snapshot on a branch is read back, so each branch keeps ex
 
 | Item | Version or range |
 | --- | --- |
-| pi-recap | `0.2.2` (`package.json`) |
+| pi-recap | `0.3.0` (`package.json`) |
 | `@earendil-works/pi-coding-agent` | `>=0.84.4 <0.86.0` (peerDependency) |
 | `@earendil-works/pi-tui` | `>=0.84.4 <0.86.0` (peerDependency; the card renders with its `Markdown` component, and Pi's module alias provides it at runtime, so the extension ships no vendored dependency) |
 | Node.js | `>=22.19.0` (matches the Pi runtime range; offline tests run `.ts` directly with node) |
