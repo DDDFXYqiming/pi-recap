@@ -53,6 +53,56 @@ assert.ok(DEFAULT_CONFIG.maxOutputTokens >= 2_048);
 assert.equal(seenOptions.apiKey, "test-only-key");
 assert.match(seenContext.systemPrompt ?? "", /active coding session/);
 assert.match(seenContext.systemPrompt ?? "", /same language the user writes in/);
+// The output contract has to name the failure modes the card cannot absorb: narrating
+// the transcript, and markdown or list layout that the recap line was never meant to hold.
+assert.match(seenContext.systemPrompt ?? "", /first character you write is the first character of the recap/);
+assert.match(seenContext.systemPrompt ?? "", /我看到了完整的会话记录/);
+assert.match(seenContext.systemPrompt ?? "", /Here is the recap/);
+assert.match(seenContext.systemPrompt ?? "", /no markdown[\s\S]*no line breaks/);
+assert.match(seenContext.systemPrompt ?? "", /untrusted session data/);
+
+// A model that ignores the contract still cannot overflow the card budget.
+const ramblingText = `我看到了完整的会话记录。这段对话的核心是：${"**真实 dsh 已恢复** 跑在看门狗下 `http://127.0.0.1:3080` - " .repeat(40)}`;
+const ramblingContext = {
+  ...fakeContext,
+  modelRegistry: {
+    ...fakeContext.modelRegistry,
+    getProvider: () => ({
+      streamSimple: () => ({
+        result: async () => ({ stopReason: "stop", content: [{ type: "text", text: ramblingText }] }),
+      }),
+    }),
+  },
+};
+const clampedRecap = await generateRecap(ramblingContext as never, { ...DEFAULT_CONFIG, maxChars: 120 }, new AbortController().signal);
+assert.ok(clampedRecap.length <= 120, `length=${clampedRecap.length}`);
+assert.ok(clampedRecap.endsWith("…"));
+assert.doesNotMatch(clampedRecap, /\[/);
+// Content is not censored at the display layer: a chatty answer stays chatty, so the
+// prompt remains the only place that shapes wording. Only the budget is enforced here.
+assert.ok(clampedRecap.startsWith("我看到了完整的会话记录。"));
+
+// Reasoning that arrives in the text channel is refused, never shown on the card.
+const leakedAnswers: string[] = [
+  `<think>The user wants a recap.</think> 任务已就绪，下一步跑回归。`,
+  `  <think>reasoning</think>`,
+];
+for (const leakText of leakedAnswers) {
+  const leakContext = {
+    ...fakeContext,
+    modelRegistry: {
+      ...fakeContext.modelRegistry,
+      getProvider: () => ({
+        streamSimple: () => ({ result: async () => ({ stopReason: "stop", content: [{ type: "text", text: leakText }] }) }),
+      }),
+    },
+  };
+  await assert.rejects(
+    () => generateRecap(leakContext as never, { ...DEFAULT_CONFIG, maxChars: 100 }, new AbortController().signal),
+    /returned reasoning instead of an answer/,
+    leakText,
+  );
+}
 
 // A provider that only emits thinking blocks reports the token ceiling, not "no text".
 const truncatedContext = {

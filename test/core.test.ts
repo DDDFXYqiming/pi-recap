@@ -7,6 +7,7 @@ import {
   frameTranscript,
   formatRecapLine,
   formatStatusLine,
+  clampRecapText,
   withRecapPrefix,
   hasOpenTurn,
   isSnapshotCurrent,
@@ -155,6 +156,22 @@ check("state is branch-bound and dismissed state is hidden", () => {
 
 check("recap line is one compact display line", () => {
   assert.equal(formatRecapLine("已完成\n下一步验证"), "↩ recap: 已完成 下一步验证");
+});
+
+check("recap text is clamped at a sentence boundary, never mid-clause", () => {
+  assert.equal(clampRecapText("  已完成验证。  ", 400), "已完成验证。");
+  // Fits exactly: unchanged, no ellipsis.
+  const exact = "十".repeat(400);
+  assert.equal(clampRecapText(exact, 400), exact);
+  const long = "排查 dsh web 静默闪退，看门狗已挂上并抓到退出码。地址是 127.0.0.1:3080，日志在 ~/.dsh/logs/dsh-web.log 尾部，确认进程还活着是下一步。".repeat(3);
+  const clamped = clampRecapText(long, 60);
+  assert.ok(clamped.length <= 60, `length=${clamped.length}`);
+  assert.ok(clamped.endsWith("…"));
+  assert.doesNotMatch(clamped, /truncated/);
+  // A decimal point must not be mistaken for the end of a sentence.
+  assert.doesNotMatch(clampRecapText("地址 127.0.0.1:3080 已恢复，下一步确认进程存活，然后再看日志尾部新增退出记录。", 20), /127\.…$/);
+  // Latin prose falls back to a word boundary when there is no terminator in range.
+  assert.equal(clampRecapText("alpha beta gamma delta epsilon", 17), "alpha beta gamma…");
 });
 
 check("status line carries the last automatic failure once", () => {

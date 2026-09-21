@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { initTheme } from "@earendil-works/pi-coding-agent";
 import piRecap, { FOCUS_INSTALL_DELAY_MS } from "../index.ts";
 import { FOCUS_DISABLE, FOCUS_ENABLE, FOCUS_IN, FOCUS_OUT } from "../presence.ts";
 import { STATE_ENTRY_TYPE, type SessionEntryLike } from "../core.ts";
@@ -19,9 +20,11 @@ const notifications: string[] = [];
 const managedListeners = new Set<(data: string) => { consume?: boolean } | undefined>();
 let registeredInput: ((data: string) => { consume?: boolean } | undefined) | undefined;
 let currentCard: string[] | undefined;
+let currentCardFactory: ((tui: unknown, theme: unknown) => { render(width: number): string[]; invalidate(): void }) | undefined;
 let presenceComponent: { dispose?(): void } | undefined;
 let appendCount = 0;
 let failAppend = false;
+let modelText = "已完成持久化验证，下一步运行 CLI 回归。";
 
 const fakeTui = {
   mode: "regular",
@@ -49,7 +52,10 @@ const ui = {
       presenceComponent = undefined;
       return;
     }
-    if (key === "pi-recap/card") currentCard = Array.isArray(content) ? content : undefined;
+    if (key === "pi-recap/card") {
+      currentCard = Array.isArray(content) ? content : undefined;
+      currentCardFactory = typeof content === "function" ? (content as never) : undefined;
+    }
   },
   setStatus(_key: string, text: string | undefined) {
     if (text) statusWrites.push(text);
@@ -80,7 +86,7 @@ const context = {
       streamSimple: () => ({
         result: async () => ({
           stopReason: "stop",
-          content: [{ type: "text", text: "已完成持久化验证，下一步运行 CLI 回归。" }],
+          content: [{ type: "text", text: modelText }],
         }),
       }),
     }),
@@ -88,7 +94,6 @@ const context = {
   },
   ui,
 };
-
 const fakePi = {
   on(name: string, handler: (...args: any[]) => unknown) { events.set(name, handler); },
   registerCommand(name: string, options: { handler: (args: string, ctx: unknown) => Promise<void> }) { commands.set(name, options); },
@@ -100,6 +105,13 @@ const fakePi = {
 };
 
 piRecap(fakePi as never);
+initTheme("dark");
+
+// The TUI card is a component, so assertions read the lines it actually renders.
+function cardLines(): string[] {
+  if (currentCard) return currentCard;
+  return currentCardFactory?.(fakeTui, {})?.render(80) ?? [];
+}
 assert.equal(events.size, 16);
 assert.ok(events.has("session_start"));
 assert.ok(events.has("session_tree"));
@@ -121,13 +133,13 @@ assert.equal(registeredInput!(FOCUS_IN)?.consume, true);
 assert.match(statusWrites.at(-1) ?? "", /focused/);
 
 await commands.get("recap")!.handler("", context);
-assert.ok(currentCard?.[0]?.startsWith("↩ recap:"));
+assert.ok(cardLines().join("").includes("↩ recap: 已完成持久化验证，下一步运行 CLI 回归。"));
 assert.equal(entries.at(-1)?.type, "custom");
 assert.equal(entries.at(-1)?.customType, STATE_ENTRY_TYPE);
 assert.equal(appendCount, 1);
 
 await commands.get("recap")!.handler("dismiss", context);
-assert.equal(currentCard, undefined);
+assert.deepEqual(cardLines(), []);
 assert.equal((entries.at(-1)?.data as { snapshot?: { dismissed?: boolean } })?.snapshot?.dismissed, true);
 assert.equal(appendCount, 2);
 assert.equal(notifications.length, 0);
@@ -151,8 +163,14 @@ assert.equal(notifications.length, notificationCount);
 
 // The next success clears it.
 failAppend = false;
+modelText = "下一步要看 **真实 dsh 是否还活着**，日志在 `~/.dsh/logs/dsh-web.log`。";
 await commands.get("recap")!.handler("", context);
 assert.doesNotMatch(statusWrites.at(-1) ?? "", /failed:/);
+// Markup that slips past the prompt is styled by Pi's own renderer instead of printing literally.
+const renderedCard = cardLines().join("\n");
+assert.doesNotMatch(renderedCard, /\*\*|`/);
+assert.ok(renderedCard.includes("真实 dsh 是否还活着"));
+assert.ok(renderedCard.includes("~/.dsh/logs/dsh-web.log"));
 
 await events.get("session_shutdown")?.({}, context);
 assert.deepEqual(terminalWrites, [FOCUS_ENABLE, FOCUS_DISABLE]);

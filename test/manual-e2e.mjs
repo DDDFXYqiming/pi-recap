@@ -203,6 +203,10 @@ async function main() {
       "请只用一句简短中文回答：本回合记录目标是实现一个 Pi TUI 会话 recap 插件。不要调用工具。",
       "请只用一句简短中文回答：当前进展是已经完成核心逻辑和手动命令设计。不要调用工具。",
       "请只用一句简短中文回答：下一步是验证持久化和 CLI 端到端行为。不要调用工具。",
+      // The transcript tail has to be as loud as the real sessions that produced bad
+      // recaps: a long markdown report with a colon-led framing sentence. If the recap
+      // prompt is weak, the model copies that style instead of writing a plain card.
+      "不要调用工具。请用中文写一段 200 字以上的进展汇报，必须使用 markdown：至少 3 处 **加粗**、2 处行内代码、1 个有序列表，并以一个冒号引导句开头（例如“现在的状态是：”）。内容是排查 dsh web 静默闪退、看门狗已挂上 PID 24772、日志在 ~/.dsh/logs/dsh-web.log。",
     ];
     for (let index = 0; index < prompts.length; index += 1) {
       send(prompts[index], `turn-${index + 1}`);
@@ -219,14 +223,27 @@ async function main() {
     const recapContextMessages = entries.filter((entry) => entry.type === "custom_message" && entry.customType === "pi-recap/state");
     const selectedModel = startupState?.model;
     const selectedModelText = selectedModel ? `${selectedModel.provider}/${selectedModel.id}` : "unknown";
+    const recapText = state?.text ?? "";
+    console.log(`[${stamp()}] recap text: ${JSON.stringify(recapText)}`);
+    const recapNotices = events
+      .filter((event) => event.type === "extension_ui_request" && event.method === "notify" && String(event.message ?? "").includes("pi-recap"))
+      .map((event) => `${event.notifyType ?? "info"}: ${event.message}`);
+    for (const notice of recapNotices) console.log(`[${stamp()}] notify ${notice}`);
     record("requested-model-selected", selectedModel?.provider === MODEL_PROVIDER && selectedModel?.id === MODEL_ID, `expected=${MODEL}, got=${selectedModelText}`);
     record("requested-thinking-level-applied", startupState?.thinkingLevel === THINKING || (THINKING === "high" && startupState?.thinkingLevel === "xhigh"), `requested=${THINKING}, effective=${startupState?.thinkingLevel ?? "unknown"}`);
     record("manual-command-completed", manualResponse?.success === true && manualResponse?.command === "prompt", manualResponse ? `success=${manualResponse.success}` : "no response");
-    record("manual-command-does-not-start-agent", runs === 3, `runs=${runs}, settled=${settled}`);
+    record("manual-command-does-not-start-agent", runs === prompts.length, `runs=${runs}, settled=${settled}`);
     record("manual-recap-widget", widgetReady, `runs=${runs}, settled=${settled}`);
     record("manual-recap-persisted", Boolean(state?.text && state?.source === "manual" && state?.anchorEntryId), state ? `source=${state.source}` : "no custom state entry");
     record("recap-is-tui-only-entry", recapEntries.length === 1 && recapContextMessages.length === 0, `custom=${recapEntries.length}, context=${recapContextMessages.length}`);
     record("no-extension-errors", extensionErrors === 0, `count=${extensionErrors}`);
+    // Output contract of the recap prompt, measured against a markdown-heavy transcript.
+    record("recap-has-no-markdown", !/\*\*|__|`|\[[^\]]*\]\(|^\s*[-*+•]\s|^\s*\d+[.)]\s/.test(recapText), recapText.slice(0, 80));
+    record("recap-is-one-line", !recapText.includes("\n"), JSON.stringify(recapText.slice(0, 80)));
+    record("recap-has-no-transcript-preamble", !/^(我看到了|我看到以|这段对话|以上对话|以下是|好的|总结|I see|Here is|Here's|In summary|Sure)/i.test(recapText), recapText.slice(0, 40));
+    record("recap-fits-the-card", recapText.length > 0 && recapText.length <= 400, `length=${recapText.length}`);
+    const thinkOpen = "<" + "think";
+    record("recap-has-no-reasoning-leak", recapText.length > 0 && !recapText.trimStart().toLowerCase().startsWith(thinkOpen), recapText.slice(0, 40) || "no text was persisted");
   } finally {
     cleaned = await teardown();
   }

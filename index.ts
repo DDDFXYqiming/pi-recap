@@ -1,4 +1,6 @@
 import type { AgentEndEvent, ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { getMarkdownTheme } from "@earendil-works/pi-coding-agent";
+import { Markdown } from "@earendil-works/pi-tui";
 import { loadConfig, saveConfig, type RecapConfig } from "./config.ts";
 import {
   completedTurnCount,
@@ -37,6 +39,31 @@ interface ActiveCall {
   controller: AbortController;
   generation: number;
   anchorEntryId: string;
+}
+
+/**
+ * The card goes through Pi's own markdown renderer, the one used for assistant messages.
+ * The prompt asks for plain prose, and when a model slips markdown in anyway it should
+ * degrade into the styling the rest of the TUI uses instead of printing literal `**`.
+ */
+function createRecapCard(line: string) {
+  let markdown = new Markdown(line, 1, 0, getMarkdownTheme());
+  return {
+    render: (width: number) => {
+      try {
+        return markdown.render(width);
+      } catch {
+        // A display component must never take the frame renderer down with it: fall
+        // back to the plain line, which is what older builds always showed.
+        return [line];
+      }
+    },
+    invalidate() {
+      // Pi calls this when the theme changes; rebuild so the card follows the new theme.
+      markdown = new Markdown(line, 1, 0, getMarkdownTheme());
+      markdown.invalidate();
+    },
+  };
 }
 
 type RunResult =
@@ -115,12 +142,18 @@ export default function piRecap(pi: ExtensionAPI) {
   function render(ctx = currentCtx) {
     if (!ctx?.hasUI) return;
     const visible = isSnapshotCurrent(snapshot, branch(ctx));
+    const line = visible && snapshot ? formatRecapLine(snapshot.text) : undefined;
     tryUi(ctx, () => {
-      ctx!.ui.setWidget(
-        CARD_WIDGET_KEY,
-        visible && snapshot ? [formatRecapLine(snapshot.text)] : undefined,
-        { placement: "aboveEditor" },
-      );
+      if (line === undefined) {
+        ctx!.ui.setWidget(CARD_WIDGET_KEY, undefined);
+        return;
+      }
+      // The TUI gets a component; RPC clients only ever receive serialisable lines.
+      if (ctx!.mode === "tui") {
+        ctx!.ui.setWidget(CARD_WIDGET_KEY, () => createRecapCard(line), { placement: "aboveEditor" });
+      } else {
+        ctx!.ui.setWidget(CARD_WIDGET_KEY, [line], { placement: "aboveEditor" });
+      }
     });
   }
 

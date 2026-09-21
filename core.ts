@@ -98,6 +98,45 @@ export function conversationMessages(entries: readonly SessionEntryLike[]): Mess
   return messages;
 }
 
+const SENTENCE_TERMINATORS = "。！？!?；;，,";
+
+function isRecapBoundary(text: string, index: number): boolean {
+  const char = text[index]!;
+  if (SENTENCE_TERMINATORS.includes(char)) return true;
+  // A dot only ends a sentence when the next character cannot continue the token,
+  // so "127.0.0.1" and "v1.2" never become cut points.
+  return char === "." && (index === text.length - 1 || /\s/.test(text[index + 1] ?? ""));
+}
+
+/**
+ * Fit a model answer into the card budget.
+ *
+ * The recap is one compact block of prose, so an over-long answer is cut at the last
+ * sentence boundary that still fits rather than mid-clause, and never with a marker
+ * string inside the sentence.
+ */
+export function clampRecapText(text: string, maxChars: number): string {
+  const trimmed = text.trim();
+  if (trimmed.length <= maxChars) return trimmed;
+  const budget = Math.max(1, maxChars - 1);
+  const window = trimmed.slice(0, budget);
+  let keep = "";
+  for (let index = window.length - 1; index >= Math.floor(budget / 2); index -= 1) {
+    if (isRecapBoundary(window, index)) {
+      keep = window.slice(0, index + 1);
+      break;
+    }
+  }
+  if (!keep) {
+    // No terminator in range: cut on a word only when the budget really lands inside a
+    // word, otherwise a Latin answer loses the last word it still had room for.
+    const landsMidWord = !/\s/.test(trimmed[budget] ?? " ");
+    const space = landsMidWord ? window.lastIndexOf(" ") : -1;
+    keep = space >= Math.floor(budget / 2) ? window.slice(0, space) : window;
+  }
+  return `${keep.replace(/[\s，,、；;：:.…]+$/, "")}…`;
+}
+
 export function shortenText(text: string, maxChars: number): string {
   if (text.length <= maxChars) return text;
   if (maxChars <= 24) return text.slice(0, Math.max(0, maxChars));

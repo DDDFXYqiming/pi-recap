@@ -4,7 +4,7 @@
 
 **Pi Coding Agent 的 TUI 会话回顾插件**。你切走终端窗口，它在后台生成一份简短回顾；回到终端时，编辑器上方一行卡片概括当前会话的整体目标、已完成进展和下一步动作。
 
-当前版本：**0.2.1**
+当前版本：**0.2.2**
 
 ## 为什么需要它
 
@@ -16,7 +16,7 @@
 - 默认要求最后一个完成 turn 已过去 3 分钟，且会话至少有 3 个完成 turn，同一个完成轮不会连续生成两次。这两道门槛挡住了短暂分心带来的无意义回顾。
 - `/recap` 随时按需生成；`/recap off` 只关闭自动回顾，手动命令始终可用。
 - 回顾正文跟随会话里用户消息的语言，英文提示词不会强制英文输出。
-- 结果以单行卡片显示在编辑器上方，最长 400 字符；输入新消息、开始新 turn、切换会话或关闭横幅后当前回顾会隐藏。
+- 结果以卡片显示在编辑器上方，最长 400 字符；卡片走 Pi 自己的 markdown 渲染器，模型偶尔漏出的 `**加粗**`、行内代码会被排版，不会把星号和反引号直接印在屏幕上。超长回答在句末边界处截断，不从句子中间断。输入新消息、开始新 turn、切换会话或关闭横幅后当前回顾会隐藏。
 - 关闭状态按「会话分支 + 回顾对应的完成轮」隔离；切走再切回，横幅不会重新出现。
 - 回顾作为 Pi custom session entry（`pi-recap/state`）持久化，不追加普通消息，也不进入后续 LLM 上下文。会话恢复、树导航、fork 和 compaction 之后按当前 branch 恢复状态。
 - 默认复用会话当前模型，也可用 `provider` + `model` 固定路由。辅助调用不发送任何思考等级，`maxOutputTokens` 只是输出上限；`temperature` 与 `stopSequences` 可选覆盖。
@@ -27,7 +27,7 @@
 
 1. presence adapter 打开终端 focus reporting（`\x1b[?1004h`），把 `ESC[I` / `ESC[O` 映射为 focused / away，并消费这两个序列，不影响正常输入。
 2. 只有会话处于 away、最后一个完成 turn 已超过 `idleMs`、完成轮数达到 `minTurns`、没有未闭合 turn 且该轮还没有回顾时才排定定时器。延迟按 `anchor.timestamp + idleMs - now` 计算，所以失焦得晚和失焦得早都落在同一个时刻。
-3. 插件从当前 branch 的会话消息构造有界输入（`recentMessages`、`maxInputChars`）：先剔除工具结果消息（原始命令输出不算意图），再以最近一条用户请求为当前任务锚点，发起一次独立辅助请求，生成不超过 40 词、一到两句的纯文本回顾，内容是当前任务、已完成进展和下一步。
+3. 插件从当前 branch 的会话消息构造有界输入（`recentMessages`、`maxInputChars`）：先剔除工具结果消息（原始命令输出不算意图），再以最近一条用户请求为当前任务锚点，发起一次独立辅助请求。提示词把输出写成硬契约：回复的第一个字符就是回顾正文的第一个字符，禁止引导句、标签和收尾问句（并把中文常见的写法列为反例），禁止照抄转录里的 markdown 排版，长度按语言给（中文 60 字内，英文 40 词内），内容是当前任务、已完成进展和下一步。
 4. 每次生成带一个 `AbortController` 和 runtime generation 计数。焦点回来、新 turn、切会话、fork、compaction、换模型都会取消在途请求；提交前再校验 anchor 是否仍是最新完成轮。
 5. 结果通过 `pi.appendEntry()` 写成 custom entry 持久化（写入前 `structuredClone`，避免 SessionManager 按引用持有内存对象），随后渲染卡片与状态行。
 6. 自动回顾失败不弹通知（你人不在终端前），而是记成状态行的 `recap on · away · failed: <原因>`，同时在 stderr 打 `[pi-recap] ...`；一次新输入或下一次成功会把它清掉。手动 `/recap` 的错误直接以 error 通知说明原因。
@@ -115,7 +115,9 @@ pi-recap: automatic on; focused; turns=7; state=ready; anchor=3f2a91c04b7d
 
 `provider` 与 `model` 必须成对填写，只填一个会直接报错。两者留空时回顾跟着会话真正在用的模型走，不需要单独指定路由。
 
-回顾是辅助调用，不携带思考等级。继承会话的 `thinking level` 会让推理 token 吃掉 `maxOutputTokens`，返回只剩 thinking 块、正文为空，卡片就报没有文本。`maxOutputTokens` 是防跑飞的输出上限，四十词的回顾通常只用五十个 token 左右，正常碰不到它；真撞上，报错会直接给出当前上限值。
+回顾是辅助调用，不携带思考等级。继承会话的 `thinking level` 会让推理 token 吃掉 `maxOutputTokens`，返回只剩 thinking 块、正文为空，卡片就报没有文本。`maxOutputTokens` 是防跑飞的输出上限，一两句回顾通常只用五十个 token 左右，正常碰不到它；真撞上，报错会直接给出当前上限值。
+
+部分对话模型（实测 MiniMax-M3）会把思考直接写进正文通道，而不是单独的 thinking 块。这类返回不会被当成回顾内容，卡片会报 `the recap model returned reasoning instead of an answer`，不会把思考过程刷在屏幕上。碰到时换个有独立 thinking 通道的模型，或给该模型关掉思考。
 
 ## 状态与持久化
 
@@ -136,8 +138,9 @@ pi-recap: automatic on; focused; turns=7; state=ready; anchor=3f2a91c04b7d
 
 | 项目 | 版本或范围 |
 | --- | --- |
-| pi-recap | `0.2.1`（`package.json`） |
+| pi-recap | `0.2.2`（`package.json`） |
 | `@earendil-works/pi-coding-agent` | `>=0.84.4 <0.86.0`（peerDependency） |
+| `@earendil-works/pi-tui` | `>=0.84.4 <0.86.0`（peerDependency，卡片渲染用它的 `Markdown` 组件；运行时由 Pi 的模块别名提供，扩展不需要自带依赖） |
 | Node.js | `>=22.19.0`（与 Pi 运行时范围一致，离线测试直接用 node 跑 `.ts`） |
 | 终端 | 需要支持 1004 focus reporting（如 Windows Terminal、xterm、iTerm2、kitty、wezterm）；不支持则自动退化为手动 |
 
