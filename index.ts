@@ -19,7 +19,6 @@ import {
 } from "./core.ts";
 import { generateRecap } from "./generation.ts";
 import { installFocusTracking, type PresenceInstallation, type PresenceTui } from "./presence.ts";
-import { createWebPresence, WEB_PRESENCE_EVENT } from "./web-presence.ts";
 
 const PRESENCE_WIDGET_KEY = "pi-recap/presence";
 const CARD_WIDGET_KEY = "pi-recap/card";
@@ -101,7 +100,6 @@ export default function piRecap(pi: ExtensionAPI) {
   let timer: ReturnType<typeof setTimeout> | undefined;
   let activeCall: ActiveCall | undefined;
   let presence: PresenceInstallation | undefined;
-  let stopWebPresence: (() => void) | undefined;
   let presenceInstallTimer: ReturnType<typeof setTimeout> | undefined;
   let presenceEpoch = 0;
   let presenceAvailable = false;
@@ -134,7 +132,9 @@ export default function piRecap(pi: ExtensionAPI) {
 
   function updateStatus(ctx = currentCtx) {
     tryUi(ctx, () => {
-      const mode = presenceAvailable ? (focused ? "focused" : "away") : "manual-only";
+      const mode = ctx?.mode === "tui"
+        ? presenceAvailable ? (focused ? "focused" : "away") : "manual-only"
+        : "manual-only";
       ctx!.ui.setStatus(STATUS_KEY, formatStatusLine(config.enabled, mode, lastAutomaticError));
     });
   }
@@ -172,8 +172,6 @@ export default function piRecap(pi: ExtensionAPI) {
     presenceInstallTimer = undefined;
     presence?.dispose();
     presence = undefined;
-    stopWebPresence?.();
-    stopWebPresence = undefined;
     presenceAvailable = false;
     focused = true;
   }
@@ -182,28 +180,6 @@ export default function piRecap(pi: ExtensionAPI) {
     traceStartup("recap:presence:prepare");
     const presenceRun = ++presenceEpoch;
     stopPresenceInstallation();
-
-    if (ctx.mode === "rpc" && process.env.PI_RECAP_FOCUS !== "0") {
-      // The host forwards browser attention through a session-local event bus.
-      // Without an explicit report, remain manual-only (no blind idle polling).
-      const web = createWebPresence((nextFocused) => {
-        if (presenceRun !== presenceEpoch) return;
-        presenceAvailable = true;
-        focused = nextFocused;
-        if (focused) {
-          clearTimer();
-          cancelCall();
-          render(currentCtx);
-        } else {
-          armAutomatic(currentCtx);
-        }
-        updateStatus(currentCtx);
-      });
-      const unsubscribe = pi.events.on(WEB_PRESENCE_EVENT, (data) => web.receive(data));
-      stopWebPresence = () => { unsubscribe(); web.dispose(); };
-      updateStatus(ctx);
-      return;
-    }
 
     if (ctx.mode !== "tui" || process.env.PI_RECAP_FOCUS === "0") {
       traceStartup("recap:presence:skipped");

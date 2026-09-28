@@ -4,7 +4,9 @@
 
 **Pi Coding Agent 的 TUI 会话回顾插件**。你切走终端窗口，它在后台生成一份简短回顾；回到终端时，编辑器上方一行卡片概括当前会话的整体目标、已完成进展和下一步动作。
 
-当前版本：**0.4.0**
+当前版本：**0.4.1**
+
+0.4.1 撤回 0.4.0 依赖宿主补丁的 GUI presence 方案，仅保留 Pi 0.87.1 版本兼容修正。安装插件不需要修改、构建或替换 pi-web。未修改的 pi-web 没有向扩展提供浏览器失焦事件，GUI 仍只支持手动 `/recap`，不宣称支持自动失焦回顾。
 
 ## 为什么需要它
 
@@ -12,7 +14,7 @@
 
 ## 能力
 
-- 仅在终端或已接入桥接的 GUI 会话失焦时后台生成；保持聚焦时，单纯空闲不会调用模型。
+- 仅在终端失焦时后台生成；窗口保持聚焦时，单纯空闲不会调用模型。
 - 默认要求最后一个完成 turn 已过去 3 分钟，且会话至少有 3 个完成 turn，同一个完成轮不会连续生成两次。这两道门槛挡住了短暂分心带来的无意义回顾。
 - `/recap` 随时按需生成；`/recap off` 只关闭自动回顾，手动命令始终可用。
 - 回顾正文跟随会话里用户消息的语言，英文提示词不会强制英文输出。
@@ -84,8 +86,7 @@ pi-recap: automatic on; focused; turns=7; state=ready; anchor=3f2a91c04b7d
 | --- | --- | --- | --- |
 | regular TUI | ✅ | ✅ | 使用终端 focus reporting 判断离开与回来 |
 | fullscreen TUI | ❌ | ✅ | Pi 的 fullscreen renderer 会在扩展之前消费 focus 序列，因此退化为手动 |
-| 已接入 presence 桥接的 pi-web | ✅ | ✅ | 复用宿主会话保活通道和官方事件总线，参见 [GUI 接入](docs/gui-presence.md) |
-| 普通 RPC 模式 | ❌ | ✅ | 未收到宿主焦点报告时保持 manual-only |
+| RPC 模式 | ❌ | ✅ | 提供命令所需的非阻塞 UI 通道 |
 | print 模式（`-p`） | ❌ | ✅ | 同上，无终端焦点概念 |
 
 终端不支持 1004 focus reporting 时同样退化为手动，状态行显示 `manual-only`。presence adapter 会在 Pi 完成首个启动渲染后再启用 1004 focus reporting，避免把 raw-input/focus 协议切换塞进 widget factory 的同步启动路径。
@@ -139,8 +140,8 @@ pi-recap: automatic on; focused; turns=7; state=ready; anchor=3f2a91c04b7d
 
 | 项目 | 版本或范围 |
 | --- | --- |
-| pi-recap | `0.4.0`（`package.json`） |
-| `@earendil-works/pi-coding-agent` | `>=0.84.4 <0.88.0`（peerDependency；回归依赖 0.87.1） |
+| pi-recap | `0.4.1`（`package.json`） |
+| `@earendil-works/pi-coding-agent` | `>=0.84.4 <0.88.0`（peerDependency） |
 | `@earendil-works/pi-tui` | `>=0.84.4 <0.88.0`（peerDependency，卡片渲染用它的 `Markdown` 组件；运行时由 Pi 的模块别名提供，扩展不需要自带依赖） |
 | Node.js | `>=22.19.0`（与 Pi 运行时范围一致，离线测试直接用 node 跑 `.ts`） |
 | 终端 | 需要支持 1004 focus reporting（如 Windows Terminal、xterm、iTerm2、kitty、wezterm）；不支持则自动退化为手动 |

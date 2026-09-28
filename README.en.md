@@ -4,7 +4,9 @@
 
 **A session-recap plugin for the Pi Coding Agent TUI.** Switch to another window and it generates a short recap in the background. When you come back, a single line above the editor summarizes the session's overall goal, completed progress, and the one next action.
 
-Current version: **0.4.0**
+Current version: **0.4.1**
+
+0.4.1 withdraws the host-patch-dependent GUI presence integration introduced in 0.4.0, retaining compatibility with Pi 0.87.1. Plugin installation requires no changes, builds or replacement of pi-web. Unmodified pi-web does not expose browser focus events to extensions, so GUI support remains manual `/recap`; automatic browser-away recaps are not supported.
 
 ## Why it exists
 
@@ -84,8 +86,7 @@ pi-recap: automatic on; focused; turns=7; state=ready; anchor=3f2a91c04b7d
 | --- | --- | --- | --- |
 | Regular TUI | ✅ | ✅ | Uses terminal focus reporting to detect away and back |
 | Fullscreen TUI | ❌ | ✅ | Pi's fullscreen renderer consumes focus sequences before extensions, so it degrades to manual |
-| pi-web with presence integration | ✅ | ✅ | Reuses host leases and the official event bus; see [GUI integration](docs/gui-presence.md) |
-| Plain RPC mode | ❌ | ✅ | Stays manual-only without host attention reports |
+| RPC mode | ❌ | ✅ | Provides the non-blocking UI channel the command needs |
 | Print mode (`-p`) | ❌ | ✅ | Same channel; there is no terminal focus concept |
 
 Terminals without 1004 focus reporting degrade to manual as well, and the status line reads `manual-only`. The presence adapter enables 1004 focus reporting only after Pi has crossed its first startup render, keeping raw-input/focus protocol mutation out of the synchronous widget-factory path.
@@ -139,7 +140,7 @@ Only the latest valid snapshot on a branch is read back, so each branch keeps ex
 
 | Item | Version or range |
 | --- | --- |
-| pi-recap | `0.4.0` (`package.json`) |
+| pi-recap | `0.4.1` (`package.json`) |
 | `@earendil-works/pi-coding-agent` | `>=0.84.4 <0.88.0` (peerDependency) |
 | `@earendil-works/pi-tui` | `>=0.84.4 <0.88.0` (peerDependency; the card renders with its `Markdown` component, and Pi's module alias provides it at runtime, so the extension ships no vendored dependency) |
 | Node.js | `>=22.19.0` (matches the Pi runtime range; offline tests run `.ts` directly with node) |
