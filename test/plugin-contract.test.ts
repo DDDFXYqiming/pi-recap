@@ -94,7 +94,14 @@ const context = {
   },
   ui,
 };
+const bus = new Map<string, (data: unknown) => void>();
 const fakePi = {
+  events: {
+    on(name: string, handler: (data: unknown) => void) {
+      bus.set(name, handler);
+      return () => { bus.delete(name); };
+    },
+  },
   on(name: string, handler: (...args: any[]) => unknown) { events.set(name, handler); },
   registerCommand(name: string, options: { handler: (args: string, ctx: unknown) => Promise<void> }) { commands.set(name, options); },
   appendEntry(type: string, data: unknown) {
@@ -196,5 +203,34 @@ assert.match(statusWrites.at(-1) ?? "", /manual-only/);
 await events.get("session_shutdown")?.({}, context);
 if (previousFocusEnv === undefined) delete process.env.PI_RECAP_FOCUS;
 else process.env.PI_RECAP_FOCUS = previousFocusEnv;
+
+// RPC without host reports stays manual-only; a session-scoped browser report
+// enables the same scheduler, without injecting a user command or a turn.
+const rpc = { ...context, mode: "rpc" };
+await events.get("session_start")?.({}, rpc);
+assert.match(statusWrites.at(-1) ?? "", /manual-only/);
+const report = (sequence: number, focused: boolean) => bus.get("pi-web:presence")?.({ version: 1, clientId: "browser-1", sequence, focused });
+entries.push(
+  { type: "message", id: "u5", message: { role: "user", content: "Verify GUI automation" } },
+  { type: "message", id: "a5", message: { role: "assistant", content: "GUI bridge is ready", stopReason: "stop" } },
+);
+report(1, true);
+assert.match(statusWrites.at(-1) ?? "", /focused/);
+const beforeGui = appendCount;
+report(2, false);
+report(3, true); // return before the timer fires must cancel it
+await new Promise((resolve) => setTimeout(resolve, 25));
+assert.equal(appendCount, beforeGui);
+report(4, false);
+await new Promise((resolve) => setTimeout(resolve, 25));
+assert.equal(appendCount, beforeGui + 1);
+assert.equal((entries.at(-1)?.data as any).snapshot.source, "automatic");
+assert.ok(currentCard?.length); // RPC serialisable widget
+report(5, true);
+report(6, false);
+await new Promise((resolve) => setTimeout(resolve, 25));
+assert.equal(appendCount, beforeGui + 1); // no duplicate for the same anchor
+await events.get("session_shutdown")?.({}, rpc);
+assert.equal(bus.size, 0);
 
 console.log(`PASS lifecycle contract (${events.size} events, ${commands.size} command, ${entries.filter((entry) => entry.type === "custom" && entry.customType === STATE_ENTRY_TYPE).length} persisted states)`);

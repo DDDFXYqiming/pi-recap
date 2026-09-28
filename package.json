@@ -1,11 +1,11 @@
 {
   "name": "pi-recap",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Session recap plugin for the Pi Coding Agent TUI.",
   "type": "module",
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
-    "test": "npm run typecheck && node test/core.test.ts && node test/presence.test.ts && node test/config.test.ts && node test/generation.test.ts && node test/plugin-contract.test.ts",
+    "test": "npm run typecheck && node test/core.test.ts && node test/presence.test.ts && node test/web-presence.test.ts && node test/config.test.ts && node test/generation.test.ts && node test/plugin-contract.test.ts",
     "test:e2e:manual": "node test/manual-e2e.mjs"
   },
   "license": "MIT",
@@ -28,12 +28,12 @@
     ]
   },
   "peerDependencies": {
-    "@earendil-works/pi-coding-agent": ">=0.84.4 <0.86.0",
-    "@earendil-works/pi-tui": ">=0.84.4 <0.86.0"
+    "@earendil-works/pi-coding-agent": ">=0.84.4 <0.88.0",
+    "@earendil-works/pi-tui": ">=0.84.4 <0.88.0"
   },
   "devDependencies": {
-    "@earendil-works/pi-coding-agent": "0.85.1",
-    "@earendil-works/pi-tui": "0.85.1",
+    "@earendil-works/pi-coding-agent": "0.87.1",
+    "@earendil-works/pi-tui": "0.87.1",
     "@types/node": "^22.19.19",
     "typescript": "^5.9.3"
   }
