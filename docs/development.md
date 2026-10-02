@@ -12,6 +12,8 @@ npm run test:e2e:manual
 node --test test/startup-probe.test.mjs  # 独立启动诊断回归，不调用模型
 ```
 
+0.4.2 的开发与回归依赖固定为 `@earendil-works/pi-coding-agent@1.0.0` 和 `@earendil-works/pi-tui@1.0.0`。两者的 peer 范围为 `>=0.84.4 <0.88.0 || ~1.0.0`，保留旧版本支持并加入 Pi 1.0.x；未声明支持 0.88.x 至 0.99.x、1.1.x 或 2.x。
+
 离线测试覆盖状态机、presence adapter、配置解析、原子写入、辅助请求构造和扩展生命周期。手动 CLI E2E 使用临时会话目录和 Pi RPC，可通过 `PI_E2E_MODEL` 与 `PI_E2E_THINKING` 指定已配置的模型及思考等级。上述测试不能代替 Windows Terminal/ConPTY 冷启动验证。
 
 手动 E2E 会先向会话里塞一轮“loud”的 markdown 长汇报（加粗、行内代码、有序列表、冒号引导句），再 `/recap`，用来量提示词的合规度。输出契约断言：不含 markdown 语法、不折行、不以描述转录的引导句开头、不超 `maxChars`、也不能短到没内容（≥ 60 字）、必须以完整句子结尾、语言必须跟转录一致（转录是中文则卡片必须含中文）、不含思考标签残留。这几项就是换模型时的主要回归信号：`aliyun-deepseek/qwen3.8-flash` 应 16/16；把思考写进正文通道的模型（实测 MiniMax-M3）现在会被剥掉思考块后正常出卡片，只有剥完什么都不剩才报错。`deepseek/deepseek-v4-flash` 实测首轮可卡4 分钟以上，看着像上游慢而不是插件问题。
@@ -20,7 +22,7 @@ node --test test/startup-probe.test.mjs  # 独立启动诊断回归，不调用�
 
 `[pi-recap] loaded` 只说明扩展工厂完成了注册，不证明 `session_start` 已经执行，更不能直接证明卡在 focus reporting。Pi 0.86.0 的 `main.ts` 在创建运行时之后还检查 piped stdin，然后才进入交互 TUI；`interactive-mode.ts` 在 TUI start 和 managed-tool setup 之后才绑定会话扩展。
 
-上一版将 focus 安装延迟 25ms，但本地反馈仍有首启卡住。**25ms 仅是时序实验，不是“首帧完成”或“键盘协议协商完成”的握手保证。** 不应继续依据最后一条 `loaded` 日志盲目增大延迟。以上是历史冷启动诊断记录。当前 0.4.1 的 peer 范围为 `>=0.84.4 <0.88.0`，开发与回归依赖为 0.87.1。API 回归不代表已验证所有终端的冷启动行为；0.4.1 已撤回依赖宿主改动的 GUI 自动化方案。
+上一版将 focus 安装延迟 25ms，但本地反馈仍有首启卡住。**25ms 仅是时序实验，不是“首帧完成”或“键盘协议协商完成”的握手保证。** 不应继续依据最后一条 `loaded` 日志盲目增大延迟。以上是历史冷启动诊断记录，当时 0.4.1 的 peer 范围为 `>=0.84.4 <0.88.0`，开发与回归依赖为 0.87.1。0.4.2 已更新到上文列出的 Pi 1.0.0 回归依赖。API 回归不代表已验证所有终端的冷启动行为；0.4.1 已撤回依赖宿主改动的 GUI 自动化方案。
 
 ### 保留真实终端的诊断入口
 

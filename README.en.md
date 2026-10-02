@@ -4,9 +4,9 @@
 
 **A session-recap plugin for the Pi Coding Agent TUI.** Switch to another window and it generates a short recap in the background. When you come back, a single line above the editor summarizes the session's overall goal, completed progress, and the one next action.
 
-Current version: **0.4.1**
+Current version: **0.4.2**
 
-0.4.1 withdraws the host-patch-dependent GUI presence integration introduced in 0.4.0, retaining compatibility with Pi 0.87.1. Plugin installation requires no changes, builds or replacement of pi-web. Unmodified pi-web does not expose browser focus events to extensions, so GUI support remains manual `/recap`; automatic browser-away recaps are not supported.
+0.4.2 adds Pi 1.0.x to the compatibility declaration and updates development and regression dependencies to 1.0.0, retaining the existing 0.84.4 through 0.87.x support range. Version 0.4.1 withdrew the host-patch-dependent GUI presence integration introduced in 0.4.0. Plugin installation requires no changes, builds or replacement of pi-web. Unmodified pi-web does not expose browser focus events to extensions, so GUI support remains manual `/recap`; automatic browser-away recaps are not supported.
 
 ## Why it exists
 
@@ -140,9 +140,9 @@ Only the latest valid snapshot on a branch is read back, so each branch keeps ex
 
 | Item | Version or range |
 | --- | --- |
-| pi-recap | `0.4.1` (`package.json`) |
-| `@earendil-works/pi-coding-agent` | `>=0.84.4 <0.88.0` (peerDependency) |
-| `@earendil-works/pi-tui` | `>=0.84.4 <0.88.0` (peerDependency; the card renders with its `Markdown` component, and Pi's module alias provides it at runtime, so the extension ships no vendored dependency) |
+| pi-recap | `0.4.2` (`package.json`) |
+| `@earendil-works/pi-coding-agent` | `>=0.84.4 <0.88.0 \|\| ~1.0.0` (peerDependency) |
+| `@earendil-works/pi-tui` | `>=0.84.4 <0.88.0 \|\| ~1.0.0` (peerDependency; the card renders with its `Markdown` component, and Pi's module alias provides it at runtime, so the extension ships no vendored dependency) |
 | Node.js | `>=22.19.0` (matches the Pi runtime range; offline tests run `.ts` directly with node) |
 | Terminal | 1004 focus reporting required for automatic mode (Windows Terminal, xterm, iTerm2, kitty, wezterm, …); otherwise manual |
 
