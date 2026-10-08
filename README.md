@@ -4,9 +4,9 @@
 
 **Pi Coding Agent 的 TUI 会话回顾插件**。你切走终端窗口，它在后台生成一份简短回顾；回到终端时，编辑器上方一行卡片概括当前会话的整体目标、已完成进展和下一步动作。
 
-当前版本为 **0.4.2**。
+当前版本为 **0.4.3**。
 
-0.4.2 将兼容声明扩展到 Pi 1.0.x，并将开发与回归依赖更新到 1.0.0，保留原有的 0.84.4 至 0.87.x 支持范围。0.4.1 已撤回 0.4.0 依赖宿主补丁的 GUI presence 方案。安装插件不需要修改、构建或替换 pi-web。未修改的 pi-web 没有向扩展提供浏览器失焦事件，GUI 仍只支持手动 `/recap`，不宣称支持自动失焦回顾。
+0.4.3 将兼容声明扩展到 Pi 1.1.x，并将开发与回归依赖更新到 1.1.0，保留原有的 0.84.4 至 0.87.x 与 1.0.x 支持范围。0.4.1 已撤回 0.4.0 依赖宿主补丁的 GUI presence 方案。安装插件不需要修改、构建或替换 pi-web。未修改的 pi-web 没有向扩展提供浏览器失焦事件，GUI 仍只支持手动 `/recap`，不宣称支持自动失焦回顾。
 
 ## 为什么需要它
 
@@ -140,9 +140,9 @@ pi-recap: automatic on; focused; turns=7; state=ready; anchor=3f2a91c04b7d
 
 | 项目 | 版本或范围 |
 | --- | --- |
-| pi-recap | `0.4.2`（`package.json`） |
-| `@earendil-works/pi-coding-agent` | `>=0.84.4 <0.88.0 \|\| ~1.0.0`（peerDependency） |
-| `@earendil-works/pi-tui` | `>=0.84.4 <0.88.0 \|\| ~1.0.0`（peerDependency，卡片渲染用它的 `Markdown` 组件；运行时由 Pi 的模块别名提供，扩展不需要自带依赖） |
+| pi-recap | `0.4.3`（`package.json`） |
+| `@earendil-works/pi-coding-agent` | `>=0.84.4 <0.88.0 \|\| ~1.0.0 \|\| ~1.1.0`（peerDependency） |
+| `@earendil-works/pi-tui` | `>=0.84.4 <0.88.0 \|\| ~1.0.0 \|\| ~1.1.0`（peerDependency，卡片渲染用它的 `Markdown` 组件；运行时由 Pi 的模块别名提供，扩展不需要自带依赖） |
 | Node.js | `>=22.19.0`（与 Pi 运行时范围一致，离线测试直接用 node 跑 `.ts`） |
 | 终端 | 需要支持 1004 focus reporting（如 Windows Terminal、xterm、iTerm2、kitty、wezterm）；不支持则自动退化为手动 |
 

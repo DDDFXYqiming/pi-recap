@@ -12,7 +12,7 @@ npm run test:e2e:manual
 node --test test/startup-probe.test.mjs  # 独立启动诊断回归，不调用模型
 ```
 
-0.4.2 的开发与回归依赖固定为 `@earendil-works/pi-coding-agent@1.0.0` 和 `@earendil-works/pi-tui@1.0.0`。两者的 peer 范围为 `>=0.84.4 <0.88.0 || ~1.0.0`，保留旧版本支持并加入 Pi 1.0.x；未声明支持 0.88.x 至 0.99.x、1.1.x 或 2.x。
+0.4.3 的开发与回归依赖固定为 `@earendil-works/pi-coding-agent@1.1.0` 和 `@earendil-works/pi-tui@1.1.0`。两者的 peer 范围为 `>=0.84.4 <0.88.0 || ~1.0.0 || ~1.1.0`，保留旧版本支持并加入 Pi 1.1.x；未声明支持 0.88.x 至 0.99.x、1.2.x 或 2.x。
 
 离线测试覆盖状态机、presence adapter、配置解析、原子写入、辅助请求构造和扩展生命周期。手动 CLI E2E 使用临时会话目录和 Pi RPC，可通过 `PI_E2E_MODEL` 与 `PI_E2E_THINKING` 指定已配置的模型及思考等级。上述测试不能代替 Windows Terminal/ConPTY 冷启动验证。
 
@@ -22,7 +22,7 @@ node --test test/startup-probe.test.mjs  # 独立启动诊断回归，不调用�
 
 `[pi-recap] loaded` 只说明扩展工厂完成了注册，不证明 `session_start` 已经执行，更不能直接证明卡在 focus reporting。Pi 0.86.0 的 `main.ts` 在创建运行时之后还检查 piped stdin，然后才进入交互 TUI；`interactive-mode.ts` 在 TUI start 和 managed-tool setup 之后才绑定会话扩展。
 
-上一版将 focus 安装延迟 25ms，但本地反馈仍有首启卡住。**25ms 仅是时序实验，不是“首帧完成”或“键盘协议协商完成”的握手保证。** 不应继续依据最后一条 `loaded` 日志盲目增大延迟。以上是历史冷启动诊断记录，当时 0.4.1 的 peer 范围为 `>=0.84.4 <0.88.0`，开发与回归依赖为 0.87.1。0.4.2 已更新到上文列出的 Pi 1.0.0 回归依赖。API 回归不代表已验证所有终端的冷启动行为；0.4.1 已撤回依赖宿主改动的 GUI 自动化方案。
+上一版将 focus 安装延迟 25ms，但本地反馈仍有首启卡住。**25ms 仅是时序实验，不是“首帧完成”或“键盘协议协商完成”的握手保证。** 不应继续依据最后一条 `loaded` 日志盲目增大延迟。以上是历史冷启动诊断记录，当时 0.4.1 的 peer 范围为 `>=0.84.4 <0.88.0`，开发与回归依赖为 0.87.1。0.4.3 已更新到上文列出的 Pi 1.1.0 回归依赖。API 回归不代表已验证所有终端的冷启动行为；0.4.1 已撤回依赖宿主改动的 GUI 自动化方案。
 
 ### 保留真实终端的诊断入口
 
