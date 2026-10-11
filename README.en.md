@@ -20,14 +20,15 @@ When developers switch away from the terminal to handle other tasks, `pi-recap` 
 
 ## Architecture & Workflow
 
-```
-[Window Blurred (ESC[O)] ──> [Presence Adapter Timer] ──> [Threshold Met: 3min + 3 turns]
-                                                                  │
-                                                                  ▼
-[Update Status / Render Card] <── [Persist pi-recap/state] <── [Filter Logs / Extract Intent]
-          │                                                       │
-          ▼                                                       ▼
-[Window Focused (ESC[I)] ─────────────────────────────────> [Auxiliary Model Query]
+```mermaid
+flowchart TD
+    A["Window Blurred (ESC[O])"] --> B["Presence Adapter Starts Timer"]
+    B --> C{"Threshold Met?<br/>(≥3min & ≥3 turns)"}
+    C -- Yes --> D["Filter Verbose Logs & Extract Core Intent"]
+    D --> E["Query Auxiliary Model for Compact Summary"]
+    E --> F["Persist State to pi-recap/state"]
+    F --> G["Window Focused (ESC[I]) Triggers Status Card"]
+    C -- No / Active Typing --> H["Remain Silent (Zero Token Waste)"]
 ```
 
 1. **Seamless Protocol Handling**: Enables 1004 focus reporting, capturing and consuming `ESC[I` (focus) and `ESC[O` (blur) sequences without interfering with standard user inputs.
